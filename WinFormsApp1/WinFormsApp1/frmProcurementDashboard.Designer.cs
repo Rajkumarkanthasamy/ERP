@@ -27,6 +27,8 @@ namespace WinFormsApp1
             btnOpenPRApproval = new Button();
             btnOpenPOApproval = new Button();
             btnOpenWorkspace = new Button();
+            btnOpenKanban = new Button();
+            btnOpenGRN = new Button();
             btnClose = new Button();
             panelHeader.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvAging).BeginInit();
@@ -129,9 +131,25 @@ namespace WinFormsApp1
             btnOpenWorkspace.ForeColor = Color.White;
             btnOpenWorkspace.Location = new Point(450, 660);
             btnOpenWorkspace.Name = "btnOpenWorkspace";
-            btnOpenWorkspace.Size = new Size(180, 34);
-            btnOpenWorkspace.Text = "Drag-Drop PR → PO";
+            btnOpenWorkspace.Size = new Size(150, 34);
+            btnOpenWorkspace.Text = "Drag-Drop PO";
             btnOpenWorkspace.Click += btnOpenWorkspace_Click;
+
+            btnOpenKanban = new Button();
+            btnOpenKanban.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            btnOpenKanban.Location = new Point(610, 660);
+            btnOpenKanban.Name = "btnOpenKanban";
+            btnOpenKanban.Size = new Size(110, 34);
+            btnOpenKanban.Text = "Kanban";
+            btnOpenKanban.Click += btnOpenKanban_Click;
+
+            btnOpenGRN = new Button();
+            btnOpenGRN.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            btnOpenGRN.Location = new Point(730, 660);
+            btnOpenGRN.Name = "btnOpenGRN";
+            btnOpenGRN.Size = new Size(100, 34);
+            btnOpenGRN.Text = "GRN";
+            btnOpenGRN.Click += btnOpenGRN_Click;
 
             btnClose.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             btnClose.Location = new Point(960, 660);
@@ -147,6 +165,8 @@ namespace WinFormsApp1
             BackColor = Color.FromArgb(240, 244, 248);
             ClientSize = new Size(1080, 710);
             Controls.Add(btnClose);
+            Controls.Add(btnOpenGRN);
+            Controls.Add(btnOpenKanban);
             Controls.Add(btnOpenWorkspace);
             Controls.Add(btnOpenPOApproval);
             Controls.Add(btnOpenPRApproval);
@@ -183,6 +203,8 @@ namespace WinFormsApp1
         private Button btnOpenPRApproval;
         private Button btnOpenPOApproval;
         private Button btnOpenWorkspace;
+        private Button btnOpenKanban;
+        private Button btnOpenGRN;
         private Button btnClose;
     }
 }

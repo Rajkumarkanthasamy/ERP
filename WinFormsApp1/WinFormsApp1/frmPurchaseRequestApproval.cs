@@ -68,6 +68,52 @@ namespace WinFormsApp1
             };
             Controls.Add(btn);
             btn.BringToFront();
+
+            if (Controls.Find("btnCollaborate", true).Length == 0)
+            {
+                Button btnCollab = new Button
+                {
+                    Name = "btnCollaborate",
+                    Text = "Comments / Files",
+                    Size = new Size(130, 32),
+                    Location = new Point(Math.Max(20, ClientSize.Width - 300), 12),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Right
+                };
+                btnCollab.Click += (s, e) =>
+                {
+                    if (string.IsNullOrEmpty(_selectedPRID))
+                    {
+                        MessageBox.Show("Select a PR first.", "Collaboration", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                    new frmEntityCollaboration("PR", _selectedPRID).ShowDialog(this);
+                };
+                Controls.Add(btnCollab);
+                btnCollab.BringToFront();
+            }
+
+            if (Controls.Find("btnPriceVariance", true).Length == 0)
+            {
+                Button btnVar = new Button
+                {
+                    Name = "btnPriceVariance",
+                    Text = "Price Variance",
+                    Size = new Size(120, 32),
+                    Location = new Point(Math.Max(20, ClientSize.Width - 430), 12),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Right
+                };
+                btnVar.Click += (s, e) =>
+                {
+                    if (string.IsNullOrEmpty(_selectedPRID))
+                    {
+                        MessageBox.Show("Select a PR first.", "Price Variance", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                    new frmPriceVariance(_selectedPRID).ShowDialog(this);
+                };
+                Controls.Add(btnVar);
+                btnVar.BringToFront();
+            }
         }
 
         private void LoadFilters()

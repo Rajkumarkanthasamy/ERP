@@ -127,6 +127,16 @@ namespace WinFormsApp1
             new frmPRtoPOWorkspace().Show(this);
         }
 
+        private void btnOpenKanban_Click(object sender, EventArgs e)
+        {
+            new frmKanbanBoard().Show(this);
+        }
+
+        private void btnOpenGRN_Click(object sender, EventArgs e)
+        {
+            new frmGRN().Show(this);
+        }
+
         private void btnClose_Click(object sender, EventArgs e) => Close();
     }
 }

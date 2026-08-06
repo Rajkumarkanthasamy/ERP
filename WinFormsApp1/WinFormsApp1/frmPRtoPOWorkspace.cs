@@ -256,6 +256,30 @@ namespace WinFormsApp1
                 return;
             }
 
+            // Phase 3: price variance advisory before convert
+            PriceIntelligenceDAL priceDal = new PriceIntelligenceDAL();
+            int alertCount = 0;
+            foreach (var pr in _droppedPRs)
+            {
+                DataTable variance = priceDal.GetPriceVarianceForPR(pr.PRNumber);
+                alertCount += CountAlerts(variance);
+            }
+
+            if (alertCount > 0)
+            {
+                var answer = MessageBox.Show(
+                    $"{alertCount} price variance alert/watch flag(s) found on dropped PRs.\n\nOpen Price Variance report before generating PO?",
+                    "Price Variance", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
+                if (answer == DialogResult.Cancel) return;
+                if (answer == DialogResult.Yes)
+                {
+                    new frmPriceVariance(_droppedPRs[0].PRNumber).ShowDialog(this);
+                    if (MessageBox.Show("Continue generating PO?", "Confirm",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                        return;
+                }
+            }
+
             if (string.IsNullOrWhiteSpace(txtPreparedBy.Text))
             {
                 MessageBox.Show("Enter Prepared By.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -344,5 +368,17 @@ namespace WinFormsApp1
 
         private void btnRefresh_Click(object sender, EventArgs e) => LoadSourcePRs();
         private void btnClose_Click(object sender, EventArgs e) => Close();
+
+        private static int CountAlerts(DataTable variance)
+        {
+            int n = 0;
+            foreach (DataRow row in variance.Rows)
+            {
+                string flag = row["Flag"]?.ToString() ?? "";
+                if (flag.StartsWith("ALERT") || flag.StartsWith("Watch"))
+                    n++;
+            }
+            return n;
+        }
     }
 }
