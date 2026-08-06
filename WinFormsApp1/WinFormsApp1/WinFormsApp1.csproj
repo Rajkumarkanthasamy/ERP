@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
+    <PackageReference Include="System.Data.SqlClient" Version="4.9.1" />
+  </ItemGroup>
+
+  <!-- Old PR→PO form retired in Phase 1; use frmPRtoPOConversion_new -->
+  <ItemGroup>
+    <Compile Remove="frmPRtoPOConversion.cs" />
+    <Compile Remove="frmPRtoPOConversion.Designer.cs" />
+    <EmbeddedResource Remove="frmPRtoPOConversion.resx" />
+  </ItemGroup>
+
+</Project>
