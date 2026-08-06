@@ -14,7 +14,7 @@ namespace WinFormsApp1
         private void frmMainMenu_Load(object sender, EventArgs e)
         {
             lblUser.Text = AppSession.DisplayLabel;
-            lblFlow.Text = "Flow: Item Code → PR Generation → PR Approval → PR Clubbing → PR to PO";
+            lblFlow.Text = "Flow: Dashboard → Item Code → PR → Approval → Clubbing → Drag-Drop PO → PO Approval";
         }
 
         private void OpenChild(Form form)
@@ -23,35 +23,15 @@ namespace WinFormsApp1
             form.Show(this);
         }
 
-        private void btnPRGeneration_Click(object sender, EventArgs e)
-        {
-            OpenChild(new frmPurchaseRequestGeneration());
-        }
-
-        private void btnPRApproval_Click(object sender, EventArgs e)
-        {
-            OpenChild(new frmPurchaseRequestApproval());
-        }
-
-        private void btnPRClubbing_Click(object sender, EventArgs e)
-        {
-            OpenChild(new frmPRClubbing());
-        }
-
-        private void btnPRtoPO_Click(object sender, EventArgs e)
-        {
-            OpenChild(new frmPRtoPOConversion_new());
-        }
-
-        private void btnItemCodeCreation_Click(object sender, EventArgs e)
-        {
-            OpenChild(new frmItemCodeCreation());
-        }
-
-        private void btnItemCodeApproval_Click(object sender, EventArgs e)
-        {
-            OpenChild(new frmItemCodeApproval());
-        }
+        private void btnDashboard_Click(object sender, EventArgs e) => OpenChild(new frmProcurementDashboard());
+        private void btnPRGeneration_Click(object sender, EventArgs e) => OpenChild(new frmPurchaseRequestGeneration());
+        private void btnPRApproval_Click(object sender, EventArgs e) => OpenChild(new frmPurchaseRequestApproval());
+        private void btnPRClubbing_Click(object sender, EventArgs e) => OpenChild(new frmPRClubbing());
+        private void btnPRtoPO_Click(object sender, EventArgs e) => OpenChild(new frmPRtoPOConversion_new());
+        private void btnWorkspace_Click(object sender, EventArgs e) => OpenChild(new frmPRtoPOWorkspace());
+        private void btnPOApproval_Click(object sender, EventArgs e) => OpenChild(new frmPOApproval());
+        private void btnItemCodeCreation_Click(object sender, EventArgs e) => OpenChild(new frmItemCodeCreation());
+        private void btnItemCodeApproval_Click(object sender, EventArgs e) => OpenChild(new frmItemCodeApproval());
 
         private void btnLogout_Click(object sender, EventArgs e)
         {
@@ -59,9 +39,6 @@ namespace WinFormsApp1
             Close();
         }
 
-        private void btnExit_Click(object sender, EventArgs e)
-        {
-            Application.Exit();
-        }
+        private void btnExit_Click(object sender, EventArgs e) => Application.Exit();
     }
 }

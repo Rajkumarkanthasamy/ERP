@@ -55,9 +55,11 @@ Login → Main Menu
   → PR → PO Conversion
 ```
 
-## Next (Phase 2)
+## Next (Phase 2) — shipped on branch `cursor/phase2-advanced-flow-9db7`
 
-- PO Approval UI (DAL already exists)
-- 12L auto-split on PR generation
+- PO Approval UI
+- 12L auto-split
 - Drag-and-drop PR → PO workspace
 - Procurement dashboard / inbox
+
+See `PHASE2_README.md`.

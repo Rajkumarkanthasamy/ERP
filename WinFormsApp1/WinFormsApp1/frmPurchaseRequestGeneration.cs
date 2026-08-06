@@ -420,14 +420,15 @@ namespace WinFormsApp1
                 return;
             }
 
-            // Validate 12L limit
+            // Phase 2: overall selection may exceed 12L — vendor groups are auto-split below
             decimal totalAmount = 0;
             decimal.TryParse(txtTotalAmount.Text, out totalAmount);
             if (totalAmount > PR_LIMIT)
             {
-                MessageBox.Show("Total amount exceeds 12 Lakh limit. Please reduce items.",
-                    "Limit Exceeded", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
+                if (MessageBox.Show(
+                        "Selected total exceeds 12 Lakh.\nPRs will be auto-split by vendor under the limit.\nContinue?",
+                        "Auto Split", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                    return;
             }
 
             // Get selected items
@@ -460,112 +461,64 @@ namespace WinFormsApp1
             int prCount = 0;
             List<string> generatedPRs = new List<string>();
 
+            string projectCode = cmbProjectCode.SelectedItem?.ToString() ?? "";
+            string createdBy = txtCreatedBy.Text;
+
             foreach (var group in vendorGroups)
             {
-                // Check if group total is within limit
-                decimal groupTotal = 0;
-                foreach (var row in group.Value)
+                // Phase 2: auto-split vendor groups that exceed 12L into multiple PRs
+                List<List<DataGridViewRow>> chunks = SplitRowsByAmountLimit(group.Value, PR_LIMIT);
+                if (chunks.Count > 1)
                 {
-                    decimal total = 0;
-                    decimal.TryParse(row.Cells["colTotalCost"].Value?.ToString(), out total);
-                    //MessageBox.Show(row.Cells["colTotalCost"].Value?.ToString());
-
-                    groupTotal += total;
-                }
-                //MessageBox.Show(groupTotal.ToString());
-
-                if (groupTotal > PR_LIMIT)
-                {
-                    MessageBox.Show("Vendor group '" + group.Key + "' exceeds 12L limit. Splitting not implemented.",
-                        "Limit Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    continue;
+                    MessageBox.Show(
+                        $"Vendor '{group.Key}' exceeds 12L.\nAuto-splitting into {chunks.Count} Purchase Requests.",
+                        "Auto Split", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
 
-                string prNumber = _dal.GetNextPRNumber();
-                if (string.IsNullOrWhiteSpace(prNumber))
+                int chunkIndex = 0;
+                foreach (List<DataGridViewRow> chunk in chunks)
                 {
-                    MessageBox.Show("Could not generate next PR number.", "Error",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    continue;
-                }
+                    chunkIndex++;
+                    decimal chunkTotal = chunk.Sum(r => GetDecimalValue(r.Cells["colTotalCost"].Value));
 
-                string projectCode = cmbProjectCode.SelectedItem?.ToString() ?? "";
-                string createdBy = txtCreatedBy.Text;
-
-                // Insert PR Header — returns real identity
-                int headerId = _dal.InsertPRHeader(
-                    prNumber, projectCode, group.Key, _dal.GetVendorName(group.Key),
-                    groupTotal, "INR", 1, "Generated from BOM", createdBy);
-
-                if (headerId <= 0)
-                {
-                    MessageBox.Show("Failed to create PR header for vendor " + group.Key,
-                        "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    continue;
-                }
-
-                bool detailsOk = true;
-                foreach (var row in group.Value)
-                {
-                    float bomQty = GetFloatValue(row.Cells["colBOMQty"].Value);
-                    float convertedQty = GetFloatValue(row.Cells["colConvertedQty"].Value);
-                    float requestQty = bomQty - convertedQty;
-                    if (requestQty <= 0)
-                        requestQty = GetFloatValue(row.Cells["colBalanceQty"].Value);
-
-                    PurchaseRequestDetail detail = new PurchaseRequestDetail
+                    // Single-line over limit: still create PR with warning
+                    if (chunkTotal > PR_LIMIT && chunk.Count == 1)
                     {
-                        PRID = headerId.ToString(),
-                        PRNumber = prNumber,
-                        ProjectBOMCode = row.Cells["colProjectBOMCode"].Value?.ToString(),
-                        ProjectCode = projectCode,
-                        ProductCode = row.Cells["colProductCode"].Value?.ToString(),
-                        ProductNo = row.Cells["colProductNo"].Value?.ToString(),
-                        ItemCode = row.Cells["colItemCode"].Value?.ToString(),
-                        ItemDescription = row.Cells["colItemName"].Value?.ToString(),
-                        Quantity = requestQty,
-                        BOMQuantity = bomQty,
-                        AlreadyPurchasedQty = GetFloatValue(row.Cells["colAlreadyPurchased"].Value),
-                        BalanceQty = GetFloatValue(row.Cells["colBalanceQty"].Value),
-                        UnitCost = GetDecimalValue(row.Cells["colUnitCost"].Value),
-                        TotalCost = GetDecimalValue(row.Cells["colTotalCost"].Value),
-                        VendorCode = row.Cells["colVendor"].Value?.ToString(),
-                        VendorName = _dal.GetVendorName(group.Key),
-                        HSNCode = row.Cells["colHSNCode"].Value?.ToString(),
-                        Location = row.Cells["collocation"].Value?.ToString(),
-                        CreatedBy = createdBy
-                    };
+                        MessageBox.Show(
+                            $"Item '{chunk[0].Cells["colItemCode"].Value}' alone exceeds 12L (₹ {chunkTotal:N2}).\nCreating PR anyway — requires special approval.",
+                            "Over-Limit Line", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
 
-                    int detailId = _dal.InsertPRDetail(detail);
-                    if (detailId <= 0)
+                    string prNumber = _dal.GetNextPRNumber();
+                    if (string.IsNullOrWhiteSpace(prNumber))
                     {
-                        detailsOk = false;
-                        MessageBox.Show("Failed to add detail for item " + detail.ItemCode,
+                        MessageBox.Show("Could not generate next PR number.", "Error",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        continue;
+                    }
+
+                    string remarks = chunks.Count > 1
+                        ? $"Generated from BOM (auto-split {chunkIndex}/{chunks.Count})"
+                        : "Generated from BOM";
+
+                    int headerId = _dal.InsertPRHeader(
+                        prNumber, projectCode, group.Key, _dal.GetVendorName(group.Key),
+                        chunkTotal, "INR", 1, remarks, createdBy);
+
+                    if (headerId <= 0)
+                    {
+                        MessageBox.Show("Failed to create PR header for vendor " + group.Key,
                             "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         continue;
                     }
 
-                    bool tracked = _dal.TrackBOMConversion(
-                        projectCode,
-                        row.Cells["colProductNo"].Value?.ToString(),
-                        detail.ItemCode,
-                        detail.ProjectBOMCode,
-                        prNumber,
-                        detail.Quantity,
-                        createdBy,
-                        headerId);
-
-                    if (!tracked)
+                    bool detailsOk = CreatePRDetailsForRows(chunk, headerId, prNumber, projectCode, group.Key, createdBy);
+                    if (detailsOk)
                     {
-                        MessageBox.Show("BOM conversion tracking failed for " + detail.ItemCode,
-                            "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        prCount++;
+                        string splitTag = chunks.Count > 1 ? $" split {chunkIndex}/{chunks.Count}" : "";
+                        generatedPRs.Add(prNumber + " (" + group.Key + splitTag + ") [PRID=" + headerId + "] ₹" + chunkTotal.ToString("N2"));
                     }
-                }
-
-                if (detailsOk)
-                {
-                    prCount++;
-                    generatedPRs.Add(prNumber + " (" + group.Key + ") [PRID=" + headerId + "]");
                 }
             }
 
@@ -581,6 +534,106 @@ namespace WinFormsApp1
                 // Refresh to show updated status
                 btnLoadBOM_Click(sender, e);
             }
+        }
+
+
+        /// <summary>
+        /// Packs rows into chunks that each stay under the amount limit (greedy first-fit).
+        /// A single row over the limit becomes its own chunk.
+        /// </summary>
+        private List<List<DataGridViewRow>> SplitRowsByAmountLimit(List<DataGridViewRow> rows, decimal limit)
+        {
+            List<List<DataGridViewRow>> chunks = new List<List<DataGridViewRow>>();
+            List<DataGridViewRow> ordered = rows
+                .OrderByDescending(r => GetDecimalValue(r.Cells["colTotalCost"].Value))
+                .ToList();
+
+            foreach (DataGridViewRow row in ordered)
+            {
+                decimal amount = GetDecimalValue(row.Cells["colTotalCost"].Value);
+                bool placed = false;
+                foreach (List<DataGridViewRow> chunk in chunks)
+                {
+                    decimal chunkTotal = chunk.Sum(r => GetDecimalValue(r.Cells["colTotalCost"].Value));
+                    if (chunkTotal + amount <= limit)
+                    {
+                        chunk.Add(row);
+                        placed = true;
+                        break;
+                    }
+                }
+                if (!placed)
+                    chunks.Add(new List<DataGridViewRow> { row });
+            }
+
+            return chunks.Count == 0 ? new List<List<DataGridViewRow>> { new List<DataGridViewRow>() } : chunks;
+        }
+
+        private bool CreatePRDetailsForRows(
+            List<DataGridViewRow> rows, int headerId, string prNumber,
+            string projectCode, string vendorCode, string createdBy)
+        {
+            bool detailsOk = true;
+            string vendorName = _dal.GetVendorName(vendorCode);
+
+            foreach (var row in rows)
+            {
+                float bomQty = GetFloatValue(row.Cells["colBOMQty"].Value);
+                float convertedQty = GetFloatValue(row.Cells["colConvertedQty"].Value);
+                float requestQty = bomQty - convertedQty;
+                if (requestQty <= 0)
+                    requestQty = GetFloatValue(row.Cells["colBalanceQty"].Value);
+
+                PurchaseRequestDetail detail = new PurchaseRequestDetail
+                {
+                    PRID = headerId.ToString(),
+                    PRNumber = prNumber,
+                    ProjectBOMCode = row.Cells["colProjectBOMCode"].Value?.ToString(),
+                    ProjectCode = projectCode,
+                    ProductCode = row.Cells["colProductCode"].Value?.ToString(),
+                    ProductNo = row.Cells["colProductNo"].Value?.ToString(),
+                    ItemCode = row.Cells["colItemCode"].Value?.ToString(),
+                    ItemDescription = row.Cells["colItemName"].Value?.ToString(),
+                    Quantity = requestQty,
+                    BOMQuantity = bomQty,
+                    AlreadyPurchasedQty = GetFloatValue(row.Cells["colAlreadyPurchased"].Value),
+                    BalanceQty = GetFloatValue(row.Cells["colBalanceQty"].Value),
+                    UnitCost = GetDecimalValue(row.Cells["colUnitCost"].Value),
+                    TotalCost = GetDecimalValue(row.Cells["colTotalCost"].Value),
+                    VendorCode = row.Cells["colVendor"].Value?.ToString(),
+                    VendorName = vendorName,
+                    HSNCode = row.Cells["colHSNCode"].Value?.ToString(),
+                    Location = row.Cells["collocation"].Value?.ToString(),
+                    CreatedBy = createdBy
+                };
+
+                int detailId = _dal.InsertPRDetail(detail);
+                if (detailId <= 0)
+                {
+                    detailsOk = false;
+                    MessageBox.Show("Failed to add detail for item " + detail.ItemCode,
+                        "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    continue;
+                }
+
+                bool tracked = _dal.TrackBOMConversion(
+                    projectCode,
+                    row.Cells["colProductNo"].Value?.ToString(),
+                    detail.ItemCode,
+                    detail.ProjectBOMCode,
+                    prNumber,
+                    detail.Quantity,
+                    createdBy,
+                    headerId);
+
+                if (!tracked)
+                {
+                    MessageBox.Show("BOM conversion tracking failed for " + detail.ItemCode,
+                        "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+
+            return detailsOk;
         }
 
         private float GetFloatValue(object value)
