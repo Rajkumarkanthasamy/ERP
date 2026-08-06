@@ -1,0 +1,10 @@
+<Project>
+  <!--
+    Helps builds when the solution is under a long OneDrive path.
+    Prefer cloning to a short local path such as C:\Dev\ERP
+  -->
+  <PropertyGroup>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+</Project>
