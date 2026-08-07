@@ -27724,133 +27724,173 @@ WHERE
         }
 
         /// <summary>
-        /// PO Status View — one row per DBOMNo with computed pipeline status.
-        /// Filters: status (All / stage name), PO number contains, vendor, project, optional date range on POPreparedDate.
+        /// PO Status View — one row per DBOMNo. PurchaseOrder only.
+        /// Never uses MAX() on TEXT columns (Remarks, RejectReason, *Remarks, etc.).
         /// </summary>
         public DataSet fnPOStatusList(string statusFilter, string poNumber, string vendor, string project, DateTime? fromDate, DateTime? toDate)
         {
             try
             {
+                if (SQLCon == null || string.IsNullOrWhiteSpace(SQLCon.ConnectionString))
+                    fnGetConnectionString();
+
                 SQLDataset = new DataSet();
                 SQLCon.Open();
 
-                string sql = @"
-SELECT
-    P.DBOMNo AS PONumber,
-    MAX(P.ProjectCode) AS ProjectCode,
-    MAX(ISNULL(PM.ProjectDescription, '')) AS ProjectDescription,
-    MAX(P.VendorCode) AS VendorCode,
-    MAX(ISNULL(V.VendorName, '')) AS VendorName,
-    MAX(P.PreparedBy) AS PreparedBy,
-    MAX(P.POPreparedDate) AS PreparedDate,
-    MAX(P.PODeliveryDate) AS DeliveryDate,
-    MAX(P.Currency) AS Currency,
-    SUM(ISNULL(P.Amount, 0)) AS TotalAmount,
-    SUM(ISNULL(P.RequariedQty, 0)) AS TotalQty,
-    SUM(ISNULL(P.RemainingQty, 0)) AS RemainingQty,
-    MAX(P.PMName) AS PMName,
-    MAX(P.PMApprovedDate) AS PMApprovedDate,
-    MAX(CAST(ISNULL(P.PMApproved, 0) AS INT)) AS PMApproved,
-    MAX(P.MHName) AS MHName,
-    MAX(P.MHApprovedDate) AS MHApprovedDate,
-    MAX(CAST(ISNULL(P.MHApproved, 0) AS INT)) AS MHApproved,
-    MAX(P.FinalizedBy) AS FinalizedBy,
-    MAX(P.FinalizedDate) AS FinalizedDate,
-    MAX(P.PurchaseCommitee) AS PurchaseCommitee,
-    MAX(P.PCAuthoriseDate) AS PCAuthoriseDate,
-    MAX(P.OMName) AS OMName,
-    MAX(P.OMApprovedDate) AS OMApprovedDate,
-    MAX(CAST(ISNULL(P.OMApproved, 0) AS INT)) AS OMApproved,
-    MAX(P.GMName) AS GMName,
-    MAX(P.GMApprovedDate) AS GMApprovedDate,
-    MAX(CAST(ISNULL(P.POApproved, 0) AS INT)) AS POApproved,
-    MAX(P.POGeneratedBy) AS POGeneratedBy,
-    MAX(P.POGeneratedDate) AS POGeneratedDate,
-    MAX(P.POSenttoVendorBy) AS POSenttoVendorBy,
-    MAX(P.POSentVendorDate) AS POSentVendorDate,
-    MAX(ISNULL(P.FinalStatus, '')) AS FinalStatus,
-    MAX(ISNULL(P.FinalComment, '')) AS FinalComment,
-    MAX(ISNULL(P.RejectReason, '')) AS RejectReason,
-    MAX(ISNULL(P.AuthoriedBy, '')) AS AuthoriedBy,
-    CASE
-        WHEN MAX(ISNULL(P.FinalStatus, '')) = 'Cancelled'
-             OR (MAX(ISNULL(P.AuthoriedBy, '')) = 'Deleted' AND MAX(ISNULL(P.FinalStatus, '')) = 'Cancelled')
-            THEN 'Cancelled'
-        WHEN MAX(ISNULL(P.FinalStatus, '')) = 'Closed'
-            THEN 'Closed'
-        WHEN MAX(ISNULL(P.AuthoriedBy, '')) = 'Deleted'
-             OR MAX(ISNULL(P.POGeneratedBy, '')) = 'Deleted'
-            THEN 'Deleted'
-        WHEN MAX(ISNULL(P.RejectReason, '')) <> ''
-             AND MAX(CAST(ISNULL(P.POApproved, 0) AS INT)) = 0
-             AND MAX(P.PurchaseCommitee) IS NULL
-            THEN 'Under Review'
-        WHEN MAX(P.POGeneratedBy) IS NOT NULL
-             AND LTRIM(RTRIM(MAX(P.POGeneratedBy))) <> ''
-             AND MAX(P.POGeneratedBy) <> 'Deleted'
-            THEN
-                CASE
-                    WHEN SUM(ISNULL(P.RemainingQty, 0)) <= 0 THEN 'Fully Received'
-                    WHEN SUM(ISNULL(P.RemainingQty, 0)) < SUM(ISNULL(P.RequariedQty, 0)) THEN 'Partially Received'
-                    WHEN MAX(P.POSenttoVendorBy) IS NOT NULL AND LTRIM(RTRIM(MAX(ISNULL(P.POSenttoVendorBy, '')))) <> ''
-                        THEN 'Sent to Vendor'
-                    ELSE 'PO Generated'
-                END
-        WHEN MAX(CAST(ISNULL(P.POApproved, 0) AS INT)) = 1
-             AND (MAX(P.POGeneratedBy) IS NULL OR LTRIM(RTRIM(MAX(ISNULL(P.POGeneratedBy, '')))) = '')
-            THEN 'Ready to Generate'
-        WHEN MAX(CAST(ISNULL(P.OMApproved, 0) AS INT)) = 1
-             AND MAX(P.OMName) IS NOT NULL
-             AND MAX(P.OMName) <> '--'
-             AND MAX(CAST(ISNULL(P.POApproved, 0) AS INT)) = 0
-             AND (MAX(P.GMName) IS NULL OR LTRIM(RTRIM(MAX(ISNULL(P.GMName, '')))) = '')
-            THEN 'Pending GM Approval'
-        WHEN MAX(P.PurchaseCommitee) IS NOT NULL
-             AND LTRIM(RTRIM(MAX(P.PurchaseCommitee))) <> ''
-             AND MAX(CAST(ISNULL(P.OMApproved, 0) AS INT)) = 0
-             AND MAX(CAST(ISNULL(P.POApproved, 0) AS INT)) = 0
-            THEN 'Pending OM Approval'
-        WHEN MAX(CAST(ISNULL(P.PMApproved, 0) AS INT)) = 1
-             AND MAX(CAST(ISNULL(P.MHApproved, 0) AS INT)) = 1
-             AND (MAX(P.PurchaseCommitee) IS NULL OR LTRIM(RTRIM(MAX(ISNULL(P.PurchaseCommitee, '')))) = '')
-            THEN 'Pending Purchase Committee'
-        WHEN MAX(CAST(ISNULL(P.PMApproved, 0) AS INT)) = 1
-             AND MAX(CAST(ISNULL(P.MHApproved, 0) AS INT)) = 0
-            THEN 'Pending MH Approval'
-        WHEN MAX(P.PreparedBy) IS NOT NULL
-             AND (MAX(CAST(ISNULL(P.PMApproved, 0) AS INT)) = 0 OR MAX(P.PMName) IS NULL)
-            THEN 'Pending PM / Dept Approval'
-        ELSE 'Created'
-    END AS CurrentStatus
-FROM PurchaseOrder P
-LEFT JOIN ProjectMaster PM ON P.ProjectCode = PM.ProjectCode
-LEFT JOIN Vendors V ON P.VendorCode = V.VendorCode
-WHERE 1 = 1";
+                bool filterStatus = !string.IsNullOrWhiteSpace(statusFilter)
+                    && !statusFilter.Equals("All", StringComparison.OrdinalIgnoreCase);
+
+                var sql = new System.Text.StringBuilder();
+                sql.Append(@"
+;WITH Filtered AS
+(
+    SELECT *
+    FROM PurchaseOrder P
+    WHERE 1 = 1");
 
                 if (!string.IsNullOrWhiteSpace(poNumber))
-                    sql += " AND P.DBOMNo LIKE @poNumber";
+                    sql.Append(" AND P.DBOMNo LIKE @poNumber");
                 if (!string.IsNullOrWhiteSpace(vendor))
-                    sql += " AND (P.VendorCode LIKE @vendor OR ISNULL(V.VendorName, '') LIKE @vendor)";
+                    sql.Append(" AND P.VendorCode LIKE @vendor");
                 if (!string.IsNullOrWhiteSpace(project))
-                    sql += " AND (P.ProjectCode LIKE @project OR ISNULL(PM.ProjectDescription, '') LIKE @project)";
+                    sql.Append(" AND P.ProjectCode LIKE @project");
                 if (fromDate.HasValue)
-                    sql += " AND TRY_CONVERT(date, P.POPreparedDate, 105) >= @fromDate";
+                    sql.Append(" AND TRY_CONVERT(date, P.POPreparedDate, 105) >= @fromDate");
                 if (toDate.HasValue)
-                    sql += " AND TRY_CONVERT(date, P.POPreparedDate, 105) <= @toDate";
+                    sql.Append(" AND TRY_CONVERT(date, P.POPreparedDate, 105) <= @toDate");
 
-                sql += @"
-GROUP BY P.DBOMNo";
+                sql.Append(@"
+),
+Agg AS
+(
+    SELECT
+        DBOMNo,
+        SUM(ISNULL(Amount, 0)) AS TotalAmount,
+        SUM(ISNULL(RequariedQty, 0)) AS TotalQty,
+        SUM(ISNULL(RemainingQty, 0)) AS RemainingQty,
+        MAX(CAST(ISNULL(PMApproved, 0) AS INT)) AS PMApproved,
+        MAX(CAST(ISNULL(MHApproved, 0) AS INT)) AS MHApproved,
+        MAX(CAST(ISNULL(OMApproved, 0) AS INT)) AS OMApproved,
+        MAX(CAST(ISNULL(POApproved, 0) AS INT)) AS POApproved
+    FROM Filtered
+    GROUP BY DBOMNo
+),
+Head AS
+(
+    SELECT *
+    FROM
+    (
+        SELECT
+            F.*,
+            ROW_NUMBER() OVER (PARTITION BY F.DBOMNo ORDER BY F.ID) AS rn
+        FROM Filtered F
+    ) X
+    WHERE X.rn = 1
+),
+Result AS
+(
+    SELECT
+        H.DBOMNo AS PONumber,
+        H.ProjectCode,
+        H.VendorCode,
+        H.PreparedBy,
+        H.POPreparedDate AS PreparedDate,
+        H.PODeliveryDate AS DeliveryDate,
+        H.Currency,
+        A.TotalAmount,
+        A.TotalQty,
+        A.RemainingQty,
+        H.PMName,
+        H.PMApprovedDate,
+        A.PMApproved,
+        CONVERT(VARCHAR(MAX), H.PMRemarks) AS PMRemarks,
+        H.MHName,
+        H.MHApprovedDate,
+        A.MHApproved,
+        CONVERT(VARCHAR(MAX), H.PMMHRemarks) AS PMMHRemarks,
+        H.FinalizedBy,
+        H.FinalizedDate,
+        CONVERT(VARCHAR(MAX), H.FinalizedRemarks) AS FinalizedRemarks,
+        H.PurchaseCommitee,
+        H.PCAuthoriseDate,
+        CONVERT(VARCHAR(MAX), H.PCRemarks) AS PCRemarks,
+        H.OMName,
+        H.OMApprovedDate,
+        A.OMApproved,
+        H.OMRemarks,
+        H.GMName,
+        H.GMApprovedDate,
+        A.POApproved,
+        H.POGeneratedBy,
+        H.POGeneratedDate,
+        H.POSenttoVendorBy,
+        H.POSentVendorDate,
+        ISNULL(H.FinalStatus, '') AS FinalStatus,
+        ISNULL(H.FinalComment, '') AS FinalComment,
+        CONVERT(VARCHAR(MAX), H.RejectReason) AS RejectReason,
+        ISNULL(H.AuthoriedBy, '') AS AuthoriedBy,
+        CONVERT(VARCHAR(MAX), H.Remarks) AS Remarks,
+        CASE
+            WHEN ISNULL(H.FinalStatus, '') = 'Cancelled'
+                 OR (ISNULL(H.AuthoriedBy, '') = 'Deleted' AND ISNULL(H.FinalStatus, '') = 'Cancelled')
+                THEN 'Cancelled'
+            WHEN ISNULL(H.FinalStatus, '') = 'Closed'
+                THEN 'Closed'
+            WHEN ISNULL(H.AuthoriedBy, '') = 'Deleted'
+                 OR ISNULL(H.POGeneratedBy, '') = 'Deleted'
+                THEN 'Deleted'
+            WHEN CONVERT(VARCHAR(MAX), H.RejectReason) IS NOT NULL
+                 AND LTRIM(RTRIM(CONVERT(VARCHAR(MAX), H.RejectReason))) <> ''
+                 AND A.POApproved = 0
+                 AND H.PurchaseCommitee IS NULL
+                THEN 'Under Review'
+            WHEN H.POGeneratedBy IS NOT NULL
+                 AND LTRIM(RTRIM(H.POGeneratedBy)) <> ''
+                 AND H.POGeneratedBy <> 'Deleted'
+                THEN
+                    CASE
+                        WHEN A.RemainingQty <= 0 THEN 'Fully Received'
+                        WHEN A.RemainingQty < A.TotalQty THEN 'Partially Received'
+                        WHEN H.POSenttoVendorBy IS NOT NULL AND LTRIM(RTRIM(H.POSenttoVendorBy)) <> ''
+                            THEN 'Sent to Vendor'
+                        ELSE 'PO Generated'
+                    END
+            WHEN A.POApproved = 1
+                 AND (H.POGeneratedBy IS NULL OR LTRIM(RTRIM(ISNULL(H.POGeneratedBy, ''))) = '')
+                THEN 'Ready to Generate'
+            WHEN A.OMApproved = 1
+                 AND H.OMName IS NOT NULL
+                 AND H.OMName <> '--'
+                 AND A.POApproved = 0
+                 AND (H.GMName IS NULL OR LTRIM(RTRIM(ISNULL(H.GMName, ''))) = '')
+                THEN 'Pending GM Approval'
+            WHEN H.PurchaseCommitee IS NOT NULL
+                 AND LTRIM(RTRIM(H.PurchaseCommitee)) <> ''
+                 AND A.OMApproved = 0
+                 AND A.POApproved = 0
+                THEN 'Pending OM Approval'
+            WHEN A.PMApproved = 1
+                 AND A.MHApproved = 1
+                 AND (H.PurchaseCommitee IS NULL OR LTRIM(RTRIM(ISNULL(H.PurchaseCommitee, ''))) = '')
+                THEN 'Pending Purchase Committee'
+            WHEN A.PMApproved = 1
+                 AND A.MHApproved = 0
+                THEN 'Pending MH Approval'
+            WHEN H.PreparedBy IS NOT NULL
+                 AND (A.PMApproved = 0 OR H.PMName IS NULL)
+                THEN 'Pending PM / Dept Approval'
+            ELSE 'Created'
+        END AS CurrentStatus
+    FROM Head H
+    INNER JOIN Agg A ON A.DBOMNo = H.DBOMNo
+)
+SELECT * FROM Result
+");
+                if (filterStatus)
+                    sql.Append(" WHERE CurrentStatus = @statusFilter");
+                sql.Append(" ORDER BY PONumber DESC");
 
-                if (!string.IsNullOrWhiteSpace(statusFilter) && !statusFilter.Equals("All", StringComparison.OrdinalIgnoreCase))
-                {
-                    sql = "SELECT * FROM (" + sql + ") AS S WHERE S.CurrentStatus = @statusFilter ORDER BY S.PONumber DESC";
-                }
-                else
-                {
-                    sql += " ORDER BY P.DBOMNo DESC";
-                }
-
-                SQLCmd = new SqlCommand(sql, SQLCon);
+                SQLCmd = new SqlCommand(sql.ToString(), SQLCon);
                 if (!string.IsNullOrWhiteSpace(poNumber))
                     SQLCmd.Parameters.AddWithValue("@poNumber", "%" + poNumber.Trim() + "%");
                 if (!string.IsNullOrWhiteSpace(vendor))
@@ -27861,7 +27901,7 @@ GROUP BY P.DBOMNo";
                     SQLCmd.Parameters.AddWithValue("@fromDate", fromDate.Value.Date);
                 if (toDate.HasValue)
                     SQLCmd.Parameters.AddWithValue("@toDate", toDate.Value.Date);
-                if (!string.IsNullOrWhiteSpace(statusFilter) && !statusFilter.Equals("All", StringComparison.OrdinalIgnoreCase))
+                if (filterStatus)
                     SQLCmd.Parameters.AddWithValue("@statusFilter", statusFilter);
 
                 SQLDadpr = new SqlDataAdapter(SQLCmd);
@@ -27877,27 +27917,31 @@ GROUP BY P.DBOMNo";
             }
         }
 
-        /// <summary>Line items for a selected PO (status detail pane).</summary>
+        /// <summary>Line items for a selected PO — PurchaseOrder table only.</summary>
         public DataSet fnPOStatusLines(string poNumber)
         {
             try
             {
+                if (SQLCon == null || string.IsNullOrWhiteSpace(SQLCon.ConnectionString))
+                    fnGetConnectionString();
+
                 SQLDataset = new DataSet();
                 SQLCon.Open();
                 SQLCmd = new SqlCommand(@"
 SELECT
-    P.ItemCode,
-    ISNULL(IM.ItemDescription, '') AS ItemDescription,
-    P.RequariedQty,
-    P.RemainingQty,
-    P.UnitPrice,
-    P.Amount,
-    ISNULL(P.Currency, '') AS Currency,
-    ISNULL(P.BOMProjectList, '') AS BOMProjects
-FROM PurchaseOrder P
-LEFT JOIN ItemMaster IM ON P.ItemCode = IM.ItemCode
-WHERE P.DBOMNo = @poNumber
-ORDER BY P.ItemCode", SQLCon);
+    ItemCode,
+    RequariedQty,
+    RemainingQty,
+    UnitPrice,
+    Amount,
+    ISNULL(Currency, '') AS Currency,
+    CONVERT(VARCHAR(MAX), BOMProjectList) AS BOMProjects,
+    ISNULL(IGSTRate, 0) AS IGSTRate,
+    ISNULL(SGSTRate, 0) AS SGSTRate,
+    ISNULL(CGSTRate, 0) AS CGSTRate
+FROM PurchaseOrder
+WHERE DBOMNo = @poNumber
+ORDER BY ItemCode", SQLCon);
                 SQLCmd.Parameters.AddWithValue("@poNumber", poNumber ?? "");
                 SQLDadpr = new SqlDataAdapter(SQLCmd);
                 SQLDadpr.Fill(SQLDataset);

@@ -33,11 +33,12 @@ namespace WinFormsApp1
         public frmPOStatusView()
         {
             InitializeComponent();
+            _dal.fnGetConnectionString();
         }
 
         private void frmPOStatusView_Load(object sender, EventArgs e)
         {
-            lblUser.Text = AppSession.DisplayLabel;
+            lblUser.Text = AppSession.IsAuthenticated ? AppSession.DisplayLabel : Environment.UserName;
             cmbStatus.Items.Clear();
             cmbStatus.Items.AddRange(StatusOptions);
             cmbStatus.SelectedIndex = 0;
@@ -46,7 +47,24 @@ namespace WinFormsApp1
             chkDateFilter.Checked = false;
             dtpFrom.Enabled = false;
             dtpTo.Enabled = false;
+            LayoutDetailPanels();
             LoadStatusList();
+        }
+
+        private void frmPOStatusView_Resize(object sender, EventArgs e) => LayoutDetailPanels();
+
+        /// <summary>Keep Close button and vertical split proportions aligned on resize.</summary>
+        private void LayoutDetailPanels()
+        {
+            if (btnClose != null && panelInfo != null)
+                btnClose.Left = Math.Max(220, panelInfo.ClientSize.Width - btnClose.Width - 12);
+
+            if (splitDetail != null && splitDetail.Width > 100)
+            {
+                int half = Math.Max(splitDetail.Panel1MinSize, (splitDetail.Width - splitDetail.SplitterWidth) / 2);
+                if (half < splitDetail.Width - splitDetail.Panel2MinSize)
+                    splitDetail.SplitterDistance = half;
+            }
         }
 
         private void chkDateFilter_CheckedChanged(object sender, EventArgs e)
@@ -69,23 +87,34 @@ namespace WinFormsApp1
 
         private void LoadStatusList()
         {
-            string status = cmbStatus.SelectedItem?.ToString() ?? "All";
-            DateTime? from = chkDateFilter.Checked ? dtpFrom.Value.Date : null;
-            DateTime? to = chkDateFilter.Checked ? dtpTo.Value.Date : null;
+            try
+            {
+                string status = cmbStatus.SelectedItem?.ToString() ?? "All";
+                DateTime? from = chkDateFilter.Checked ? dtpFrom.Value.Date : null;
+                DateTime? to = chkDateFilter.Checked ? dtpTo.Value.Date : null;
 
-            DataSet ds = _dal.fnPOStatusList(status, txtPONumber.Text, txtVendor.Text, txtProject.Text, from, to);
-            DataTable dt = ds?.Tables.Count > 0 ? ds.Tables[0] : new DataTable();
-            dgvPOList.DataSource = dt;
-            FormatListGrid();
-            ColorStatusRows();
-            lblCount.Text = "POs: " + dt.Rows.Count;
-            UpdateSummaryChips(dt);
-            ClearDetail();
+                DataSet ds = _dal.fnPOStatusList(status, txtPONumber.Text, txtVendor.Text, txtProject.Text, from, to);
+                DataTable dt = (ds != null && ds.Tables.Count > 0) ? ds.Tables[0] : new DataTable();
+
+                dgvPOList.SelectionChanged -= dgvPOList_SelectionChanged;
+                dgvPOList.DataSource = dt;
+                FormatListGrid();
+                ColorStatusRows();
+                lblCount.Text = "POs: " + dt.Rows.Count;
+                UpdateSummaryChips(dt);
+                ClearDetail();
+                dgvPOList.SelectionChanged += dgvPOList_SelectionChanged;
+            }
+            catch (Exception ex)
+            {
+                dgvPOList.SelectionChanged -= dgvPOList_SelectionChanged;
+                dgvPOList.SelectionChanged += dgvPOList_SelectionChanged;
+                MessageBox.Show("LoadStatusList: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void FormatListGrid()
         {
-            dgvPOList.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             dgvPOList.RowHeadersVisible = false;
             dgvPOList.AllowUserToAddRows = false;
             dgvPOList.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
@@ -97,7 +126,8 @@ namespace WinFormsApp1
                 "PMApproved", "MHApproved", "OMApproved", "POApproved",
                 "PMApprovedDate", "MHApprovedDate", "FinalizedDate", "PCAuthoriseDate",
                 "OMApprovedDate", "GMApprovedDate", "POSentVendorDate", "AuthoriedBy",
-                "RejectReason", "FinalComment", "BOMProjects"
+                "RejectReason", "FinalComment", "Remarks", "PMRemarks", "PMMHRemarks",
+                "FinalizedRemarks", "PCRemarks", "OMRemarks", "BOMProjects", "TotalQty"
             };
             foreach (string col in hide)
             {
@@ -107,8 +137,7 @@ namespace WinFormsApp1
 
             SetHeader("PONumber", "PO Number");
             SetHeader("ProjectCode", "Project");
-            SetHeader("ProjectDescription", "Project Name");
-            SetHeader("VendorName", "Vendor");
+            SetHeader("VendorCode", "Vendor");
             SetHeader("PreparedBy", "Prepared By");
             SetHeader("PreparedDate", "Prepared");
             SetHeader("DeliveryDate", "Delivery");
@@ -118,8 +147,18 @@ namespace WinFormsApp1
             SetHeader("POGeneratedBy", "Generated By");
             SetHeader("POGeneratedDate", "Generated");
             SetHeader("PurchaseCommitee", "PC");
+            SetHeader("FinalizedBy", "Finalized By");
             SetHeader("GMName", "GM");
             SetHeader("OMName", "OM");
+            SetHeader("PMName", "PM");
+            SetHeader("MHName", "MH");
+
+            // Prefer readable widths instead of equal Fill squeezing every column
+            dgvPOList.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells;
+            if (dgvPOList.Columns.Contains("CurrentStatus"))
+                dgvPOList.Columns["CurrentStatus"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            if (dgvPOList.Columns.Contains("PONumber"))
+                dgvPOList.Columns["PONumber"].MinimumWidth = 110;
         }
 
         private void SetHeader(string col, string text)
@@ -192,26 +231,40 @@ namespace WinFormsApp1
             DataRow row = view.Row;
             _selectedPO = row["PONumber"]?.ToString() ?? "";
             ShowDetail(row);
-            LoadLinesAndTimeline(_selectedPO);
+            LoadLines(_selectedPO);
+            BuildTimelineFromPORow(row);
         }
 
         private void ShowDetail(DataRow row)
         {
-            string status = row["CurrentStatus"]?.ToString() ?? "-";
-            lblPO.Text = "PO: " + row["PONumber"];
+            string status = Col(row, "CurrentStatus", "-");
+            lblPO.Text = "PO: " + Col(row, "PONumber");
             lblStatus.Text = status;
             lblStatus.ForeColor = StatusColor(status);
-            lblProject.Text = "Project: " + row["ProjectCode"] + " — " + row["ProjectDescription"];
-            lblVendor.Text = "Vendor: " + row["VendorCode"] + " — " + row["VendorName"];
-            lblPrepared.Text = "Prepared: " + row["PreparedBy"] + " / " + row["PreparedDate"];
-            lblAmount.Text = "Amount: " + Convert.ToDecimal(row["TotalAmount"] == DBNull.Value ? 0 : row["TotalAmount"]).ToString("N2")
-                             + " " + (row["Currency"]?.ToString() ?? "");
-            lblDelivery.Text = "Delivery: " + row["DeliveryDate"];
-            lblFinal.Text = string.IsNullOrWhiteSpace(row["FinalStatus"]?.ToString())
+            lblProject.Text = "Project: " + Col(row, "ProjectCode");
+            lblVendor.Text = "Vendor: " + Col(row, "VendorCode");
+            lblPrepared.Text = "Prepared: " + Col(row, "PreparedBy") + " / " + Col(row, "PreparedDate");
+
+            decimal amount = 0;
+            if (row.Table.Columns.Contains("TotalAmount") && row["TotalAmount"] != DBNull.Value)
+                amount = Convert.ToDecimal(row["TotalAmount"]);
+            lblAmount.Text = "Amount: " + amount.ToString("N2") + " " + Col(row, "Currency");
+            lblDelivery.Text = "Delivery: " + Col(row, "DeliveryDate");
+
+            string finalStatus = Col(row, "FinalStatus");
+            lblFinal.Text = string.IsNullOrWhiteSpace(finalStatus)
                 ? "Lifecycle: Active"
-                : "Lifecycle: " + row["FinalStatus"] + " — " + row["FinalComment"];
+                : "Lifecycle: " + finalStatus + " — " + Col(row, "FinalComment");
 
             BuildPipeline(row);
+            LayoutDetailPanels();
+        }
+
+        private static string Col(DataRow row, string name, string fallback = "")
+        {
+            if (row == null || !row.Table.Columns.Contains(name) || row[name] == DBNull.Value)
+                return fallback;
+            return row[name]?.ToString() ?? fallback;
         }
 
         private static Color StatusColor(string status) => status switch
@@ -228,20 +281,23 @@ namespace WinFormsApp1
         private void BuildPipeline(DataRow row)
         {
             flpPipeline.Controls.Clear();
-            AddStep("Created", true, row["PreparedBy"]?.ToString(), row["PreparedDate"]?.ToString());
-            AddStep("PM", IsFilled(row["PMName"]) || ToBool(row["PMApproved"]), row["PMName"]?.ToString(), row["PMApprovedDate"]?.ToString());
-            AddStep("MH", IsFilled(row["MHName"]) || ToBool(row["MHApproved"]), row["MHName"]?.ToString(), row["MHApprovedDate"]?.ToString());
-            AddStep("PC", IsFilled(row["PurchaseCommitee"]), row["PurchaseCommitee"]?.ToString(), row["PCAuthoriseDate"]?.ToString());
-            AddStep("OM", IsFilled(row["OMName"]) || ToBool(row["OMApproved"]), row["OMName"]?.ToString(), row["OMApprovedDate"]?.ToString());
-            AddStep("GM", IsFilled(row["GMName"]), row["GMName"]?.ToString(), row["GMApprovedDate"]?.ToString());
-            AddStep("Approved", ToBool(row["POApproved"]), ToBool(row["POApproved"]) ? "Yes" : "No", null);
-            AddStep("Generated", IsFilled(row["POGeneratedBy"]) && row["POGeneratedBy"]?.ToString() != "Deleted",
-                row["POGeneratedBy"]?.ToString(), row["POGeneratedDate"]?.ToString());
-            AddStep("Vendor", IsFilled(row["POSenttoVendorBy"]), row["POSenttoVendorBy"]?.ToString(), row["POSentVendorDate"]?.ToString());
+            AddStep("Created", true, Col(row, "PreparedBy"), Col(row, "PreparedDate"));
+            AddStep("PM", IsFilled(Col(row, "PMName")) || ToBool(Col(row, "PMApproved")), Col(row, "PMName"), Col(row, "PMApprovedDate"));
+            AddStep("MH", IsFilled(Col(row, "MHName")) || ToBool(Col(row, "MHApproved")), Col(row, "MHName"), Col(row, "MHApprovedDate"));
+            AddStep("PC", IsFilled(Col(row, "PurchaseCommitee")), Col(row, "PurchaseCommitee"), Col(row, "PCAuthoriseDate"));
+            AddStep("OM", IsFilled(Col(row, "OMName")) || ToBool(Col(row, "OMApproved")), Col(row, "OMName"), Col(row, "OMApprovedDate"));
+            AddStep("GM", IsFilled(Col(row, "GMName")), Col(row, "GMName"), Col(row, "GMApprovedDate"));
+            AddStep("Approved", ToBool(Col(row, "POApproved")), ToBool(Col(row, "POApproved")) ? "Yes" : "No", null);
+            string genBy = Col(row, "POGeneratedBy");
+            AddStep("Generated", IsFilled(genBy) && genBy != "Deleted", genBy, Col(row, "POGeneratedDate"));
+            AddStep("Vendor", IsFilled(Col(row, "POSenttoVendorBy")), Col(row, "POSenttoVendorBy"), Col(row, "POSentVendorDate"));
 
-            decimal rem = Convert.ToDecimal(row["RemainingQty"] == DBNull.Value ? 0 : row["RemainingQty"]);
-            decimal tot = Convert.ToDecimal(row["TotalQty"] == DBNull.Value ? 0 : row["TotalQty"]);
-            bool received = IsFilled(row["POGeneratedBy"]) && rem < tot;
+            decimal rem = 0, tot = 0;
+            if (row.Table.Columns.Contains("RemainingQty") && row["RemainingQty"] != DBNull.Value)
+                rem = Convert.ToDecimal(row["RemainingQty"]);
+            if (row.Table.Columns.Contains("TotalQty") && row["TotalQty"] != DBNull.Value)
+                tot = Convert.ToDecimal(row["TotalQty"]);
+            bool received = IsFilled(genBy) && rem < tot;
             AddStep("Receipt", received, rem <= 0 && tot > 0 ? "Full" : (received ? "Partial" : "Pending"), null);
         }
 
@@ -249,41 +305,46 @@ namespace WinFormsApp1
         {
             var panel = new Panel
             {
-                Width = 108,
-                Height = 72,
-                Margin = new Padding(4),
+                Width = 100,
+                Height = 74,
+                Margin = new Padding(3, 2, 3, 2),
+                Padding = new Padding(6, 4, 6, 4),
                 BackColor = done ? Color.FromArgb(40, 120, 90) : Color.FromArgb(210, 215, 220)
             };
-            var lblTitle = new Label
+
+            string whoText = string.IsNullOrWhiteSpace(who) || who == "--" ? (done ? "Done" : "—") : who;
+            if (whoText.Length > 14) whoText = whoText.Substring(0, 14);
+
+            string whenText = "";
+            if (!string.IsNullOrWhiteSpace(when) && when != "--")
+                whenText = when.Length > 10 ? when.Substring(0, 10) : when;
+
+            panel.Controls.Add(new Label
             {
                 Text = title,
                 ForeColor = done ? Color.White : Color.FromArgb(70, 70, 70),
                 Font = new Font("Segoe UI Semibold", 8.5F, FontStyle.Bold),
-                Location = new Point(6, 6),
+                Location = new Point(6, 4),
                 AutoSize = true
-            };
-            var lblWho = new Label
+            });
+            panel.Controls.Add(new Label
             {
-                Text = string.IsNullOrWhiteSpace(who) || who == "--" ? (done ? "Done" : "—") : who,
+                Text = whoText,
                 ForeColor = done ? Color.FromArgb(220, 240, 230) : Color.FromArgb(100, 100, 100),
                 Font = new Font("Segoe UI", 7.5F),
-                Location = new Point(6, 28),
-                MaximumSize = new Size(96, 40),
-                AutoSize = true
-            };
-            panel.Controls.Add(lblTitle);
-            panel.Controls.Add(lblWho);
-            if (!string.IsNullOrWhiteSpace(when) && when != "--")
+                Location = new Point(6, 26),
+                Size = new Size(88, 18),
+                AutoEllipsis = true
+            });
+            panel.Controls.Add(new Label
             {
-                panel.Controls.Add(new Label
-                {
-                    Text = when.Length > 16 ? when.Substring(0, 16) : when,
-                    ForeColor = done ? Color.FromArgb(200, 230, 210) : Color.Gray,
-                    Font = new Font("Segoe UI", 7F),
-                    Location = new Point(6, 52),
-                    AutoSize = true
-                });
-            }
+                Text = whenText,
+                ForeColor = done ? Color.FromArgb(200, 230, 210) : Color.Gray,
+                Font = new Font("Segoe UI", 7F),
+                Location = new Point(6, 48),
+                Size = new Size(88, 16),
+                AutoEllipsis = true
+            });
             flpPipeline.Controls.Add(panel);
         }
 
@@ -302,25 +363,25 @@ namespace WinFormsApp1
             return false;
         }
 
-        private void LoadLinesAndTimeline(string poNumber)
+        private void LoadLines(string poNumber)
         {
-            DataSet lines = _dal.fnPOStatusLines(poNumber);
-            dgvLines.DataSource = lines?.Tables.Count > 0 ? lines.Tables[0] : null;
-            dgvLines.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-            dgvLines.RowHeadersVisible = false;
-            dgvLines.ReadOnly = true;
-            dgvLines.AllowUserToAddRows = false;
-
-            DataSet remarks = _dal.PORemarksHistory(1, poNumber);
-            DataTable timeline = BuildTimelineTable(remarks?.Tables.Count > 0 ? remarks.Tables[0] : null);
-            dgvTimeline.DataSource = timeline;
-            dgvTimeline.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-            dgvTimeline.RowHeadersVisible = false;
-            dgvTimeline.ReadOnly = true;
-            dgvTimeline.AllowUserToAddRows = false;
+            try
+            {
+                DataSet lines = _dal.fnPOStatusLines(poNumber);
+                dgvLines.DataSource = (lines != null && lines.Tables.Count > 0) ? lines.Tables[0] : null;
+                dgvLines.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+                dgvLines.RowHeadersVisible = false;
+                dgvLines.ReadOnly = true;
+                dgvLines.AllowUserToAddRows = false;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("LoadLines: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
-        private static DataTable BuildTimelineTable(DataTable raw)
+        /// <summary>Timeline from PurchaseOrder approval columns on the selected row only.</summary>
+        private void BuildTimelineFromPORow(DataRow row)
         {
             DataTable t = new DataTable();
             t.Columns.Add("Stage", typeof(string));
@@ -328,24 +389,36 @@ namespace WinFormsApp1
             t.Columns.Add("Date", typeof(string));
             t.Columns.Add("Remarks", typeof(string));
 
-            string[] stages =
-            {
-                "Prepared", "PM Approval", "Finalized / MH", "Purchase Committee",
-                "OM Approval", "Finance", "GM Approval", "PO Update Request"
-            };
+            AddTimelineRow(t, "Prepared", row, "PreparedBy", "PreparedDate", "Remarks");
+            AddTimelineRow(t, "PM Approval", row, "PMName", "PMApprovedDate", "PMRemarks");
+            AddTimelineRow(t, "MH Approval", row, "MHName", "MHApprovedDate", "PMMHRemarks");
+            AddTimelineRow(t, "Finalized", row, "FinalizedBy", "FinalizedDate", "FinalizedRemarks");
+            AddTimelineRow(t, "Purchase Committee", row, "PurchaseCommitee", "PCAuthoriseDate", "PCRemarks");
+            AddTimelineRow(t, "OM Approval", row, "OMName", "OMApprovedDate", "OMRemarks");
+            AddTimelineRow(t, "GM Approval", row, "GMName", "GMApprovedDate", "RejectReason");
+            AddTimelineRow(t, "PO Generated", row, "POGeneratedBy", "POGeneratedDate", null);
+            AddTimelineRow(t, "Sent to Vendor", row, "POSenttoVendorBy", "POSentVendorDate", null);
 
-            if (raw == null || raw.Rows.Count == 0)
-                return t;
+            if (IsFilled(Col(row, "FinalStatus")))
+                t.Rows.Add(Col(row, "FinalStatus"), "", "", Col(row, "FinalComment"));
 
-            for (int i = 0; i < raw.Rows.Count && i < stages.Length; i++)
-            {
-                DataRow r = raw.Rows[i];
-                string user = r[0]?.ToString() ?? "";
-                if (string.IsNullOrWhiteSpace(user) || user == "--")
-                    continue;
-                t.Rows.Add(stages[i], user, r[1]?.ToString() ?? "", r[2]?.ToString() ?? "");
-            }
-            return t;
+            dgvTimeline.DataSource = t;
+            dgvTimeline.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dgvTimeline.RowHeadersVisible = false;
+            dgvTimeline.ReadOnly = true;
+            dgvTimeline.AllowUserToAddRows = false;
+        }
+
+        private void AddTimelineRow(DataTable t, string stage, DataRow row, string userCol, string dateCol, string remarksCol)
+        {
+            if (!row.Table.Columns.Contains(userCol)) return;
+            string user = row[userCol]?.ToString() ?? "";
+            if (!IsFilled(user) || user == "Deleted") return;
+            string date = row.Table.Columns.Contains(dateCol) ? (row[dateCol]?.ToString() ?? "") : "";
+            string remarks = remarksCol != null && row.Table.Columns.Contains(remarksCol)
+                ? (row[remarksCol]?.ToString() ?? "")
+                : "";
+            t.Rows.Add(stage, user, date, remarks);
         }
 
         private void ClearDetail()
