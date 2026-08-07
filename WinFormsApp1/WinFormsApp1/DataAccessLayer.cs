@@ -27799,19 +27799,38 @@ WHERE DBOMNo = @poNumber", SQLCon);
         /// Approval route from PO total (Amount + GST).
         /// PCCase: 9 = PC finalizes, 10 = send to OM.
         /// OMCase: 19 = OM finalizes (Vivek G band), 17 = OM then GM.
+        /// Compatible with .NET Framework 4.5 (no ValueTuple).
         /// </summary>
-        public static (string Tier, string NextApprover, int PCCase, int OMCase) GetPOApprovalRoute(decimal totalWithGst)
+        public static POApprovalRoute GetPOApprovalRoute(decimal totalWithGst)
         {
+            POApprovalRoute route = new POApprovalRoute();
+
             // <= 50,000 — Purchase Committee can fully approve
             if (totalWithGst <= PO_OM_THRESHOLD)
-                return ("PC_FINAL", "Purchase Committee (final)", 9, 19);
+            {
+                route.Tier = "PC_FINAL";
+                route.NextApprover = "Purchase Committee (final)";
+                route.PCCase = 9;
+                route.OMCase = 19;
+                return route;
+            }
 
             // > 50,000 and <= 2,50,000 — Vivek G / OM can finalize
             if (totalWithGst <= PO_GM_THRESHOLD)
-                return ("OM_REQUIRED", "Vivek G / OM", 10, 19);
+            {
+                route.Tier = "OM_REQUIRED";
+                route.NextApprover = "Vivek G / OM";
+                route.PCCase = 10;
+                route.OMCase = 19;
+                return route;
+            }
 
             // > 2,50,000 — GM required after OM
-            return ("GM_REQUIRED", "GM (after OM)", 10, 17);
+            route.Tier = "GM_REQUIRED";
+            route.NextApprover = "GM (after OM)";
+            route.PCCase = 10;
+            route.OMCase = 17;
+            return route;
         }
 
         /// <summary>Convenience: which PC DAL case (9/10) to call for this PO.</summary>

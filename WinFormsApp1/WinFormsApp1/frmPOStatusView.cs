@@ -52,7 +52,10 @@ namespace WinFormsApp1
             LoadStatusList();
         }
 
-        private void frmPOStatusView_Resize(object sender, EventArgs e) => LayoutDetailPanels();
+        private void frmPOStatusView_Resize(object sender, EventArgs e)
+        {
+            LayoutDetailPanels();
+        }
 
         /// <summary>Keep Close button aligned; set split distances once after real size is known.</summary>
         private void LayoutDetailPanels()
@@ -105,7 +108,10 @@ namespace WinFormsApp1
             dtpTo.Enabled = chkDateFilter.Checked;
         }
 
-        private void btnSearch_Click(object sender, EventArgs e) => LoadStatusList();
+        private void btnSearch_Click(object sender, EventArgs e)
+        {
+            LoadStatusList();
+        }
 
         private void btnRefresh_Click(object sender, EventArgs e)
         {
@@ -121,9 +127,11 @@ namespace WinFormsApp1
         {
             try
             {
-                string status = cmbStatus.SelectedItem?.ToString() ?? "All";
-                DateTime? from = chkDateFilter.Checked ? dtpFrom.Value.Date : null;
-                DateTime? to = chkDateFilter.Checked ? dtpTo.Value.Date : null;
+                string status = "All";
+                if (cmbStatus.SelectedItem != null)
+                    status = cmbStatus.SelectedItem.ToString();
+                DateTime? from = chkDateFilter.Checked ? (DateTime?)dtpFrom.Value.Date : null;
+                DateTime? to = chkDateFilter.Checked ? (DateTime?)dtpTo.Value.Date : null;
 
                 DataSet ds = _dal.fnPOStatusList(status, txtPONumber.Text, txtVendor.Text, txtProject.Text, from, to);
                 DataTable dt = (ds != null && ds.Tables.Count > 0) ? ds.Tables[0] : new DataTable();
@@ -208,21 +216,29 @@ namespace WinFormsApp1
 
             foreach (DataGridViewRow row in dgvPOList.Rows)
             {
-                string status = row.Cells["CurrentStatus"].Value?.ToString() ?? "";
-                Color back = status switch
-                {
-                    "Cancelled" or "Deleted" => Color.FromArgb(255, 230, 230),
-                    "Closed" => Color.FromArgb(230, 230, 230),
-                    "Under Review" => Color.FromArgb(255, 245, 200),
-                    "Fully Received" => Color.FromArgb(220, 245, 220),
-                    "Partially Received" => Color.FromArgb(230, 245, 255),
-                    "Ready to Generate" => Color.FromArgb(225, 240, 255),
-                    "PO Generated" or "Sent to Vendor" => Color.FromArgb(235, 250, 235),
-                    "Pending GM Approval" => Color.FromArgb(255, 235, 210),
-                    _ when status.StartsWith("Pending", StringComparison.OrdinalIgnoreCase)
-                        => Color.FromArgb(255, 248, 230),
-                    _ => Color.White
-                };
+                object cellVal = row.Cells["CurrentStatus"].Value;
+                string status = cellVal == null ? "" : cellVal.ToString();
+                Color back = Color.White;
+
+                if (status == "Cancelled" || status == "Deleted")
+                    back = Color.FromArgb(255, 230, 230);
+                else if (status == "Closed")
+                    back = Color.FromArgb(230, 230, 230);
+                else if (status == "Under Review")
+                    back = Color.FromArgb(255, 245, 200);
+                else if (status == "Fully Received")
+                    back = Color.FromArgb(220, 245, 220);
+                else if (status == "Partially Received")
+                    back = Color.FromArgb(230, 245, 255);
+                else if (status == "Ready to Generate")
+                    back = Color.FromArgb(225, 240, 255);
+                else if (status == "PO Generated" || status == "Sent to Vendor")
+                    back = Color.FromArgb(235, 250, 235);
+                else if (status == "Pending GM Approval")
+                    back = Color.FromArgb(255, 235, 210);
+                else if (status.StartsWith("Pending", StringComparison.OrdinalIgnoreCase))
+                    back = Color.FromArgb(255, 248, 230);
+
                 row.DefaultCellStyle.BackColor = back;
             }
         }
@@ -230,40 +246,48 @@ namespace WinFormsApp1
         private void UpdateSummaryChips(DataTable dt)
         {
             flpSummary.Controls.Clear();
-            var counts = new System.Collections.Generic.SortedDictionary<string, int>();
+            System.Collections.Generic.SortedDictionary<string, int> counts =
+                new System.Collections.Generic.SortedDictionary<string, int>();
             foreach (DataRow row in dt.Rows)
             {
-                string st = row["CurrentStatus"]?.ToString() ?? "Unknown";
+                object stObj = row["CurrentStatus"];
+                string st = stObj == null || stObj == DBNull.Value ? "Unknown" : stObj.ToString();
                 if (!counts.ContainsKey(st)) counts[st] = 0;
                 counts[st]++;
             }
 
-            foreach (var kv in counts)
+            foreach (System.Collections.Generic.KeyValuePair<string, int> kv in counts)
             {
-                var chip = new Label
-                {
-                    AutoSize = true,
-                    Margin = new Padding(4),
-                    Padding = new Padding(8, 4, 8, 4),
-                    BackColor = Color.FromArgb(20, 55, 90),
-                    ForeColor = Color.White,
-                    Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
-                    Text = kv.Key + ": " + kv.Value
-                };
+                Label chip = new Label();
+                chip.AutoSize = true;
+                chip.Margin = new Padding(4);
+                chip.Padding = new Padding(8, 4, 8, 4);
+                chip.BackColor = Color.FromArgb(20, 55, 90);
+                chip.ForeColor = Color.White;
+                chip.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+                chip.Text = kv.Key + ": " + kv.Value;
                 flpSummary.Controls.Add(chip);
             }
         }
 
         private void dgvPOList_SelectionChanged(object sender, EventArgs e)
         {
-            if (dgvPOList.CurrentRow == null || dgvPOList.CurrentRow.DataBoundItem is not DataRowView view)
+            if (dgvPOList.CurrentRow == null)
+            {
+                ClearDetail();
+                return;
+            }
+
+            DataRowView view = dgvPOList.CurrentRow.DataBoundItem as DataRowView;
+            if (view == null)
             {
                 ClearDetail();
                 return;
             }
 
             DataRow row = view.Row;
-            _selectedPO = row["PONumber"]?.ToString() ?? "";
+            object poObj = row["PONumber"];
+            _selectedPO = poObj == null || poObj == DBNull.Value ? "" : poObj.ToString();
             ShowDetail(row);
             LoadLines(_selectedPO);
             BuildTimelineFromPORow(row);
@@ -295,33 +319,45 @@ namespace WinFormsApp1
                 ? "Lifecycle: Active"
                 : "Lifecycle: " + finalStatus + " — " + Col(row, "FinalComment");
 
-            // Approval route from Amount + GST
+            // Approval route from Amount + GST (.NET 4.5 compatible — no ValueTuple)
             decimal routeAmt = amount;
-            var route = DataAccessLayer.GetPOApprovalRoute(routeAmt);
-            lblFinal.Text += "  |  Route: " + route.NextApprover
-                + " (≤50k PC final · >50k–2.5L Vivek G/OM · >2.5L GM)";
+            POApprovalRoute route = DataAccessLayer.GetPOApprovalRoute(routeAmt);
+            lblFinal.Text = lblFinal.Text + "  |  Route: " + route.NextApprover
+                + " (<=50k PC final / >50k-2.5L Vivek G-OM / >2.5L GM)";
 
             BuildPipeline(row);
             LayoutDetailPanels();
         }
 
-        private static string Col(DataRow row, string name, string fallback = "")
+        private static string Col(DataRow row, string name, string fallback)
         {
             if (row == null || !row.Table.Columns.Contains(name) || row[name] == DBNull.Value)
                 return fallback;
-            return row[name]?.ToString() ?? fallback;
+            object v = row[name];
+            return v == null ? fallback : v.ToString();
         }
 
-        private static Color StatusColor(string status) => status switch
+        private static string Col(DataRow row, string name)
         {
-            "Cancelled" or "Deleted" => Color.Firebrick,
-            "Closed" => Color.DimGray,
-            "Under Review" => Color.DarkOrange,
-            "Fully Received" => Color.ForestGreen,
-            "Ready to Generate" or "PO Generated" or "Sent to Vendor" => Color.DarkGreen,
-            _ when status.StartsWith("Pending", StringComparison.OrdinalIgnoreCase) => Color.Chocolate,
-            _ => Color.FromArgb(20, 55, 90)
-        };
+            return Col(row, name, "");
+        }
+
+        private static Color StatusColor(string status)
+        {
+            if (status == "Cancelled" || status == "Deleted")
+                return Color.Firebrick;
+            if (status == "Closed")
+                return Color.DimGray;
+            if (status == "Under Review")
+                return Color.DarkOrange;
+            if (status == "Fully Received")
+                return Color.ForestGreen;
+            if (status == "Ready to Generate" || status == "PO Generated" || status == "Sent to Vendor")
+                return Color.DarkGreen;
+            if (!string.IsNullOrEmpty(status) && status.StartsWith("Pending", StringComparison.OrdinalIgnoreCase))
+                return Color.Chocolate;
+            return Color.FromArgb(20, 55, 90);
+        }
 
         private void BuildPipeline(DataRow row)
         {
@@ -396,15 +432,18 @@ namespace WinFormsApp1
         private static bool IsFilled(object value)
         {
             if (value == null || value == DBNull.Value) return false;
-            string s = value.ToString()?.Trim() ?? "";
+            string s = value.ToString();
+            if (s == null) return false;
+            s = s.Trim();
             return s.Length > 0 && s != "--";
         }
 
         private static bool ToBool(object value)
         {
             if (value == null || value == DBNull.Value) return false;
-            if (value is bool b) return b;
-            if (int.TryParse(value.ToString(), out int i)) return i != 0;
+            if (value is bool) return (bool)value;
+            int i;
+            if (int.TryParse(value.ToString(), out i)) return i != 0;
             return false;
         }
 
@@ -457,12 +496,21 @@ namespace WinFormsApp1
         private void AddTimelineRow(DataTable t, string stage, DataRow row, string userCol, string dateCol, string remarksCol)
         {
             if (!row.Table.Columns.Contains(userCol)) return;
-            string user = row[userCol]?.ToString() ?? "";
+            object userObj = row[userCol];
+            string user = userObj == null || userObj == DBNull.Value ? "" : userObj.ToString();
             if (!IsFilled(user) || user == "Deleted") return;
-            string date = row.Table.Columns.Contains(dateCol) ? (row[dateCol]?.ToString() ?? "") : "";
-            string remarks = remarksCol != null && row.Table.Columns.Contains(remarksCol)
-                ? (row[remarksCol]?.ToString() ?? "")
-                : "";
+            string date = "";
+            if (row.Table.Columns.Contains(dateCol))
+            {
+                object dateObj = row[dateCol];
+                date = dateObj == null || dateObj == DBNull.Value ? "" : dateObj.ToString();
+            }
+            string remarks = "";
+            if (remarksCol != null && row.Table.Columns.Contains(remarksCol))
+            {
+                object remObj = row[remarksCol];
+                remarks = remObj == null || remObj == DBNull.Value ? "" : remObj.ToString();
+            }
             t.Rows.Add(stage, user, date, remarks);
         }
 
@@ -483,6 +531,9 @@ namespace WinFormsApp1
             dgvTimeline.DataSource = null;
         }
 
-        private void btnClose_Click(object sender, EventArgs e) => Close();
+        private void btnClose_Click(object sender, EventArgs e)
+        {
+            Close();
+        }
     }
 }
