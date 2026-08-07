@@ -28,6 +28,7 @@ namespace WinFormsApp1
             btnPRtoPO = new Button();
             btnWorkspace = new Button();
             btnPOApproval = new Button();
+            btnPOStatus = new Button();
             btnGRN = new Button();
             btnPriceVariance = new Button();
             btnItemCodeCreation = new Button();
@@ -91,13 +92,14 @@ namespace WinFormsApp1
             StyleTile(btnWorkspace, "  4. Drag & Drop PR → PO Workspace", 460, 156, btnWorkspace_Click, true);
             StyleTile(btnPRtoPO, "  5. Classic PR → PO Conversion", 20, 226, btnPRtoPO_Click);
             StyleTile(btnPOApproval, "  6. PO Approval (PM / MH / Final)", 460, 226, btnPOApproval_Click, true);
-            StyleTile(btnGRN, "  7. Goods Receipt (GRN)", 20, 296, btnGRN_Click, true);
-            StyleTile(btnPriceVariance, "  8. Price Variance / Last-PO Compare", 460, 296, btnPriceVariance_Click, true);
-            StyleTile(btnItemCodeCreation, "  9. Item Code Creation", 20, 366, btnItemCodeCreation_Click);
-            StyleTile(btnItemCodeApproval, "  10. Item Code Approval", 460, 366, btnItemCodeApproval_Click);
+            StyleTile(btnPOStatus, "  7. PO Status View (all POs)", 20, 296, btnPOStatus_Click, true);
+            StyleTile(btnGRN, "  8. Goods Receipt (GRN)", 460, 296, btnGRN_Click, true);
+            StyleTile(btnPriceVariance, "  9. Price Variance / Last-PO Compare", 20, 366, btnPriceVariance_Click, true);
+            StyleTile(btnItemCodeCreation, "  10. Item Code Creation", 460, 366, btnItemCodeCreation_Click);
+            StyleTile(btnItemCodeApproval, "  11. Item Code Approval", 20, 436, btnItemCodeApproval_Click);
 
             btnLogout.FlatStyle = FlatStyle.Flat;
-            btnLogout.Location = new Point(20, 450);
+            btnLogout.Location = new Point(20, 520);
             btnLogout.Size = new Size(160, 38);
             btnLogout.Text = "Logout";
             btnLogout.Click += btnLogout_Click;
@@ -106,7 +108,7 @@ namespace WinFormsApp1
             btnExit.BackColor = Color.FromArgb(20, 90, 140);
             btnExit.FlatStyle = FlatStyle.Flat;
             btnExit.ForeColor = Color.White;
-            btnExit.Location = new Point(720, 450);
+            btnExit.Location = new Point(720, 520);
             btnExit.Size = new Size(160, 38);
             btnExit.Text = "Exit";
             btnExit.Click += btnExit_Click;
@@ -115,7 +117,7 @@ namespace WinFormsApp1
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.FromArgb(240, 244, 248);
-            ClientSize = new Size(920, 640);
+            ClientSize = new Size(920, 700);
             Controls.Add(panelBody);
             Controls.Add(panelHeader);
             FormBorderStyle = FormBorderStyle.FixedSingle;
@@ -145,6 +147,7 @@ namespace WinFormsApp1
         private Button btnPRtoPO;
         private Button btnWorkspace;
         private Button btnPOApproval;
+        private Button btnPOStatus;
         private Button btnGRN;
         private Button btnPriceVariance;
         private Button btnItemCodeCreation;

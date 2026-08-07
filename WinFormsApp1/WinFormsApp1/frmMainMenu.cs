@@ -14,7 +14,7 @@ namespace WinFormsApp1
         private void frmMainMenu_Load(object sender, EventArgs e)
         {
             lblUser.Text = AppSession.DisplayLabel;
-            lblFlow.Text = "Phase 3 flow: Dashboard → Kanban → PR → PO → Approval → GRN · Comments · Price variance";
+            lblFlow.Text = "Flow: Dashboard → Kanban → PR → PO → Approval → Status → GRN · Price variance";
         }
 
         private void OpenChild(Form form)
@@ -31,6 +31,7 @@ namespace WinFormsApp1
         private void btnPRtoPO_Click(object sender, EventArgs e) => OpenChild(new frmPRtoPOConversion_new());
         private void btnWorkspace_Click(object sender, EventArgs e) => OpenChild(new frmPRtoPOWorkspace());
         private void btnPOApproval_Click(object sender, EventArgs e) => OpenChild(new frmPOApproval());
+        private void btnPOStatus_Click(object sender, EventArgs e) => OpenChild(new frmPOStatusView());
         private void btnGRN_Click(object sender, EventArgs e) => OpenChild(new frmGRN());
         private void btnPriceVariance_Click(object sender, EventArgs e) => OpenChild(new frmPriceVariance());
         private void btnItemCodeCreation_Click(object sender, EventArgs e) => OpenChild(new frmItemCodeCreation());
