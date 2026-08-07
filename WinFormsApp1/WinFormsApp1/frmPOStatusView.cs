@@ -54,14 +54,22 @@ namespace WinFormsApp1
 
         private void frmPOStatusView_Resize(object sender, EventArgs e) => LayoutDetailPanels();
 
-        /// <summary>Keep Close button and split proportions safe after the form has a real size.</summary>
+        /// <summary>Keep Close button aligned; set split distances once after real size is known.</summary>
         private void LayoutDetailPanels()
         {
             if (btnClose != null && panelInfo != null && panelInfo.ClientSize.Width > 0)
                 btnClose.Left = Math.Max(220, panelInfo.ClientSize.Width - btnClose.Width - 12);
 
-            SafeSetSplitterDistance(splitMain, preferredRatio: 0.48);
-            SafeSetSplitterDistance(splitDetail, preferredRatio: 0.55);
+            if (_splitsInitialized)
+                return;
+
+            if (splitMain != null && splitMain.ClientSize.Height > 200
+                && splitDetail != null && splitDetail.ClientSize.Width > 200)
+            {
+                SafeSetSplitterDistance(splitMain, preferredRatio: 0.48);
+                SafeSetSplitterDistance(splitDetail, preferredRatio: 0.55);
+                _splitsInitialized = true;
+            }
         }
 
         private static void SafeSetSplitterDistance(SplitContainer split, double preferredRatio)
