@@ -12965,13 +12965,13 @@ using System.Data;
 
                     case 9:
                         {
-                            //PO<150000 Purchage commite member
+                            // PO total (Amount + GST) < 150000 — Purchase Committee can fully approve
                             SQLCmd = new SqlCommand("UPDATE PurchaseOrder SET PurchaseCommitee='" + ApprovedBy + "',PCAuthoriseDate='" + ApprovedDate + "',PCRemarks='" + remarks + "',OMName='--',OMRemarks='--',OMApproved=1,OMApprovedDate='" + ApprovedDate + "',GMName='--',POApproved=1 WHERE DBOMNo='" + PONumber + "'", SQLCon);
                             break;
                         }
                     case 10:
                         {
-                            //PO>=150000 and PO<=500000 Purchage commite member
+                            // PO total (Amount + GST) >= 150000 and <= 500000 — PC done, OM still required
                             SQLCmd = new SqlCommand("UPDATE PurchaseOrder SET PurchaseCommitee='" + ApprovedBy + "',PCAuthoriseDate='" + ApprovedDate + "',PCRemarks='" + remarks + "',OMApproved=0,POApproved=0 WHERE DBOMNo='" + PONumber + "'", SQLCon);
                             break;
                         }
@@ -15988,7 +15988,7 @@ using System.Data;
                         SQLCmd = new SqlCommand("UPDATE PurchaseOrder SET [PMName]='" + sUser + "',[PMApproved]=1,[PMApprovedDate]='" + sReason + "',[MHName]='--', [MHApproved]=1,[MHApprovedDate]='" + sReason + "'  WHERE DBOMNo='" + sPONumber + "'", SQLCon);
                         break;
 
-                    //vivek G PO>500000
+                    // OM for PO total (Amount + GST) > 500000 — does not finalize; GM still required
                     case 17:
                         SQLCmd = new SqlCommand("UPDATE PurchaseOrder SET POApproved='0',OMApproved=1,OMName='" + sUser + "',OMApprovedDate='" + sReason + "',OMRemarks='" + sRemarks + "'  WHERE DBOMNo='" + sPONumber + "'", SQLCon);
                         break;
@@ -15997,7 +15997,7 @@ using System.Data;
                         SQLCmd = new SqlCommand("UPDATE PurchaseOrder SET POApproved=0,OMApproved=0, PCRemarks='Approved',PCAuthoriseDate='" + sReason + "',PurchaseCommitee='Vivek G' WHERE DBOMNo='" + sPONumber + "'", SQLCon);
                         break;
 
-                    //vivek G PO<=500000
+                    // OM for PO total (Amount + GST) <= 500000 — can finalize; GM skipped
                     case 19:
                         SQLCmd = new SqlCommand("UPDATE PurchaseOrder SET POApproved='1',OMApproved=1,OMName='" + sUser + "',OMApprovedDate='" + sReason + "',OMRemarks='" + sRemarks + "',GMName='--'  WHERE DBOMNo='" + sPONumber + "'", SQLCon);
                         break;
@@ -26831,7 +26831,11 @@ WHERE
                         SQLCmd = new SqlCommand(@"SELECT ProjectCode,ItemCode,RequariedQty as RequiredQty,UnitPrice,Amount,PODeliveryDate FROM PurchaseOrder WHERE  DBOMNo='" + sPONumber + "'", SQLCon);
                         break;
                     case 2:
-                        SQLCmd = new SqlCommand(@"SELECT SUM(Amount) AS TotalAmount FROM PurchaseOrder WHERE DBOMNo='" + sPONumber + "'", SQLCon);
+                        // PO total including GST — used for approval amount thresholds (1.5L / 5L)
+                        SQLCmd = new SqlCommand(@"SELECT SUM(ISNULL(Amount, 0) + ISNULL(IGSTAmount, 0) + ISNULL(SGSTAmount, 0) + ISNULL(CGSTAmount, 0)) AS TotalAmount,
+                                                         SUM(ISNULL(Amount, 0)) AS BaseAmount,
+                                                         SUM(ISNULL(IGSTAmount, 0) + ISNULL(SGSTAmount, 0) + ISNULL(CGSTAmount, 0)) AS GSTAmount
+                                                  FROM PurchaseOrder WHERE DBOMNo='" + sPONumber + "'", SQLCon);
                         break;
 
                 }
@@ -26865,7 +26869,11 @@ WHERE
                         SQLCmd = new SqlCommand(@"SELECT * FROM PurchaseOrder WHERE DBOMNo='" + sPONumber + "'", SQLCon);
                         break;
                     case 3:
-                        SQLCmd = new SqlCommand(@"SELECT SUM(Amount) AS TotalAmount FROM PurchaseOrder WHERE DBOMNo='" + sPONumber + "'", SQLCon);
+                        // PO total including GST — used for approval amount thresholds (1.5L / 5L)
+                        SQLCmd = new SqlCommand(@"SELECT SUM(ISNULL(Amount, 0) + ISNULL(IGSTAmount, 0) + ISNULL(SGSTAmount, 0) + ISNULL(CGSTAmount, 0)) AS TotalAmount,
+                                                         SUM(ISNULL(Amount, 0)) AS BaseAmount,
+                                                         SUM(ISNULL(IGSTAmount, 0) + ISNULL(SGSTAmount, 0) + ISNULL(CGSTAmount, 0)) AS GSTAmount
+                                                  FROM PurchaseOrder WHERE DBOMNo='" + sPONumber + "'", SQLCon);
                         break;
 
                 }
@@ -27765,7 +27773,13 @@ Agg AS
 (
     SELECT
         DBOMNo,
-        SUM(ISNULL(Amount, 0)) AS TotalAmount,
+        -- Base Amount + line GST (IGST/SGST/CGST) — used for approval thresholds
+        SUM(ISNULL(Amount, 0)
+            + ISNULL(IGSTAmount, 0)
+            + ISNULL(SGSTAmount, 0)
+            + ISNULL(CGSTAmount, 0)) AS TotalAmount,
+        SUM(ISNULL(Amount, 0)) AS BaseAmount,
+        SUM(ISNULL(IGSTAmount, 0) + ISNULL(SGSTAmount, 0) + ISNULL(CGSTAmount, 0)) AS GSTAmount,
         SUM(ISNULL(RequariedQty, 0)) AS TotalQty,
         SUM(ISNULL(RemainingQty, 0)) AS RemainingQty,
         MAX(CAST(ISNULL(PMApproved, 0) AS INT)) AS PMApproved,
@@ -27798,6 +27812,8 @@ Result AS
         H.PODeliveryDate AS DeliveryDate,
         H.Currency,
         A.TotalAmount,
+        A.BaseAmount,
+        A.GSTAmount,
         A.TotalQty,
         A.RemainingQty,
         H.PMName,
@@ -27933,7 +27949,11 @@ SELECT
     RequariedQty,
     RemainingQty,
     UnitPrice,
-    Amount,
+    Amount AS BaseAmount,
+    ISNULL(IGSTAmount, 0) AS IGSTAmount,
+    ISNULL(SGSTAmount, 0) AS SGSTAmount,
+    ISNULL(CGSTAmount, 0) AS CGSTAmount,
+    (ISNULL(Amount, 0) + ISNULL(IGSTAmount, 0) + ISNULL(SGSTAmount, 0) + ISNULL(CGSTAmount, 0)) AS AmountWithGST,
     ISNULL(Currency, '') AS Currency,
     CONVERT(VARCHAR(MAX), BOMProjectList) AS BOMProjects,
     ISNULL(IGSTRate, 0) AS IGSTRate,
