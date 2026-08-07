@@ -218,12 +218,13 @@ namespace WinFormsApp1
             flpSummary.FlowDirection = FlowDirection.LeftToRight;
 
             // ===== Main split: list | detail =====
+            // Do NOT set SplitterDistance / large MinSize here — control width/height
+            // is still tiny during InitializeComponent and throws InvalidOperationException.
             splitMain.Dock = DockStyle.Fill;
             splitMain.Orientation = Orientation.Horizontal;
-            splitMain.SplitterDistance = 300;
             splitMain.SplitterWidth = 6;
-            splitMain.Panel1MinSize = 120;
-            splitMain.Panel2MinSize = 220;
+            splitMain.Panel1MinSize = 25;
+            splitMain.Panel2MinSize = 25;
             splitMain.Panel1.Controls.Add(dgvPOList);
             splitMain.Panel2.Controls.Add(panelDetail);
             splitMain.Panel2.Padding = new Padding(0);
@@ -310,12 +311,12 @@ namespace WinFormsApp1
             flpPipeline.Padding = new Padding(0, 2, 0, 2);
 
             // --- Lines | Timeline ---
+            // SplitterDistance is applied after the form is sized (see LayoutDetailPanels).
             splitDetail.Dock = DockStyle.Fill;
             splitDetail.Orientation = Orientation.Vertical;
             splitDetail.SplitterWidth = 6;
-            splitDetail.SplitterDistance = 560;
-            splitDetail.Panel1MinSize = 200;
-            splitDetail.Panel2MinSize = 200;
+            splitDetail.Panel1MinSize = 25;
+            splitDetail.Panel2MinSize = 25;
             splitDetail.Margin = new Padding(0);
             splitDetail.Panel1.Padding = new Padding(12, 4, 4, 8);
             splitDetail.Panel2.Padding = new Padding(4, 4, 12, 8);

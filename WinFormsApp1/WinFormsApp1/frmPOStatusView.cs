@@ -9,6 +9,7 @@ namespace WinFormsApp1
     {
         private readonly DataAccessLayer _dal = new DataAccessLayer();
         private string _selectedPO = "";
+        private bool _splitsInitialized;
 
         private static readonly string[] StatusOptions =
         {
@@ -53,17 +54,40 @@ namespace WinFormsApp1
 
         private void frmPOStatusView_Resize(object sender, EventArgs e) => LayoutDetailPanels();
 
-        /// <summary>Keep Close button and vertical split proportions aligned on resize.</summary>
+        /// <summary>Keep Close button and split proportions safe after the form has a real size.</summary>
         private void LayoutDetailPanels()
         {
-            if (btnClose != null && panelInfo != null)
+            if (btnClose != null && panelInfo != null && panelInfo.ClientSize.Width > 0)
                 btnClose.Left = Math.Max(220, panelInfo.ClientSize.Width - btnClose.Width - 12);
 
-            if (splitDetail != null && splitDetail.Width > 100)
+            SafeSetSplitterDistance(splitMain, preferredRatio: 0.48);
+            SafeSetSplitterDistance(splitDetail, preferredRatio: 0.55);
+        }
+
+        private static void SafeSetSplitterDistance(SplitContainer split, double preferredRatio)
+        {
+            if (split == null || split.IsDisposed)
+                return;
+
+            int total = split.Orientation == Orientation.Horizontal
+                ? split.ClientSize.Height
+                : split.ClientSize.Width;
+
+            int available = total - split.SplitterWidth;
+            if (available <= split.Panel1MinSize + split.Panel2MinSize)
+                return;
+
+            int desired = (int)(available * preferredRatio);
+            int min = split.Panel1MinSize;
+            int max = available - split.Panel2MinSize;
+            if (max < min)
+                return;
+
+            int value = Math.Min(max, Math.Max(min, desired));
+            if (split.SplitterDistance != value)
             {
-                int half = Math.Max(splitDetail.Panel1MinSize, (splitDetail.Width - splitDetail.SplitterWidth) / 2);
-                if (half < splitDetail.Width - splitDetail.Panel2MinSize)
-                    splitDetail.SplitterDistance = half;
+                try { split.SplitterDistance = value; }
+                catch (InvalidOperationException) { /* ignore during early layout */ }
             }
         }
 
