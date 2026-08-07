@@ -2,11 +2,26 @@
 
 Screen: **Main Menu → 7. PO Status View (all POs)**  
 Form: `frmPOStatusView`  
-DAL: `DataAccessLayer.fnPOStatusList`, `fnPOStatusLines`, `PORemarksHistory(1, …)`
+DAL: `DataAccessLayer.fnPOStatusList`, `fnPOStatusLines`, `fnGetPOAmountWithGST`
 
-## Purpose
+## PO amount for approval (includes GST)
 
-View the live pipeline status of every Purchase Order in `ERP_Database.dbo.PurchaseOrder` (same table / DAL as the legacy `PurchaseOrder` form).
+```
+TotalAmount = SUM(Amount + IGSTAmount + SGSTAmount + CGSTAmount)
+```
+
+## Approval thresholds (Amount + GST)
+
+| Total amount | After PM + MH + PC | Who finalizes |
+|--------------|--------------------|---------------|
+| **≤ ₹50,000** | PC can fully approve (`case 9`) | Purchase Committee |
+| **> ₹50,000 and ≤ ₹2,50,000** | Needs **Vivek G / OM** (`case 19`) | OM finalizes, GM skipped |
+| **> ₹2,50,000** | Needs OM then **GM** (`case 17` → GM) | GM finalizes |
+
+Helpers:
+- `fnGetPOAmountWithGST(po)` → TotalAmount, BaseAmount, GSTAmount, ApprovalTier, PCApprovalCase, OMApprovalCase
+- `fnGetPCApprovalCase(po)` → `9` or `10`
+- `fnGetOMApprovalCase(po)` → `19` or `17`
 
 ## Computed statuses
 
@@ -16,26 +31,10 @@ View the live pipeline status of every Purchase Order in `ERP_Database.dbo.Purch
 | Pending PM / Dept Approval | Waiting PM / department |
 | Pending MH Approval | PM done, MH pending |
 | Pending Purchase Committee | PM+MH done, PC pending |
-| Pending OM Approval | PC done, OM pending |
-| Pending GM Approval | OM done, high-value GM pending |
+| Pending OM Approval | Amount > 50k, PC done, Vivek G/OM pending |
+| Pending GM Approval | Amount > 2.5L, OM done, GM pending |
 | Ready to Generate | Fully approved (`POApproved=1`), not yet generated |
 | PO Generated | `POGeneratedBy` set |
 | Sent to Vendor | Vendor mail / send flag set |
-| Partially Received | Some qty inwarded |
-| Fully Received | Remaining qty = 0 |
-| Under Review | Sent back (`RejectReason`) |
-| Closed / Cancelled / Deleted | Lifecycle end states (`FinalStatus` / Deleted flags) |
-
-## Filters
-
-- PO number, vendor, project (contains)
-- Status dropdown
-- Optional prepared-date range
-
-## Detail pane
-
-- Approval pipeline chips (Created → PM → MH → PC → OM → GM → Approved → Generated → Vendor → Receipt)
-- Line items (`fnPOStatusLines`)
-- Remarks timeline (`PORemarksHistory` case 1)
-
-No schema change required if your `PurchaseOrder` table already has the approval / `FinalStatus` / GIN columns used by the legacy ERP.
+| Partially / Fully Received | Receipt progress |
+| Under Review / Closed / Cancelled / Deleted | Special / end states |

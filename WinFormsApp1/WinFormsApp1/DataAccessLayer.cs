@@ -12965,13 +12965,13 @@ using System.Data;
 
                     case 9:
                         {
-                            // PO total (Amount + GST) < 150000 — Purchase Committee can fully approve
+                            // PO total (Amount + GST) <= 50000 — Purchase Committee can fully approve (no OM/GM)
                             SQLCmd = new SqlCommand("UPDATE PurchaseOrder SET PurchaseCommitee='" + ApprovedBy + "',PCAuthoriseDate='" + ApprovedDate + "',PCRemarks='" + remarks + "',OMName='--',OMRemarks='--',OMApproved=1,OMApprovedDate='" + ApprovedDate + "',GMName='--',POApproved=1 WHERE DBOMNo='" + PONumber + "'", SQLCon);
                             break;
                         }
                     case 10:
                         {
-                            // PO total (Amount + GST) >= 150000 and <= 500000 — PC done, OM still required
+                            // PO total (Amount + GST) > 50000 — PC done; OM (Vivek G) still required
                             SQLCmd = new SqlCommand("UPDATE PurchaseOrder SET PurchaseCommitee='" + ApprovedBy + "',PCAuthoriseDate='" + ApprovedDate + "',PCRemarks='" + remarks + "',OMApproved=0,POApproved=0 WHERE DBOMNo='" + PONumber + "'", SQLCon);
                             break;
                         }
@@ -15988,7 +15988,7 @@ using System.Data;
                         SQLCmd = new SqlCommand("UPDATE PurchaseOrder SET [PMName]='" + sUser + "',[PMApproved]=1,[PMApprovedDate]='" + sReason + "',[MHName]='--', [MHApproved]=1,[MHApprovedDate]='" + sReason + "'  WHERE DBOMNo='" + sPONumber + "'", SQLCon);
                         break;
 
-                    // OM for PO total (Amount + GST) > 500000 — does not finalize; GM still required
+                    // OM / Vivek G: PO total (Amount + GST) > 250000 — does not finalize; GM still required
                     case 17:
                         SQLCmd = new SqlCommand("UPDATE PurchaseOrder SET POApproved='0',OMApproved=1,OMName='" + sUser + "',OMApprovedDate='" + sReason + "',OMRemarks='" + sRemarks + "'  WHERE DBOMNo='" + sPONumber + "'", SQLCon);
                         break;
@@ -15997,7 +15997,7 @@ using System.Data;
                         SQLCmd = new SqlCommand("UPDATE PurchaseOrder SET POApproved=0,OMApproved=0, PCRemarks='Approved',PCAuthoriseDate='" + sReason + "',PurchaseCommitee='Vivek G' WHERE DBOMNo='" + sPONumber + "'", SQLCon);
                         break;
 
-                    // OM for PO total (Amount + GST) <= 500000 — can finalize; GM skipped
+                    // OM / Vivek G: PO total (Amount + GST) > 50000 and <= 250000 — can finalize; GM skipped
                     case 19:
                         SQLCmd = new SqlCommand("UPDATE PurchaseOrder SET POApproved='1',OMApproved=1,OMName='" + sUser + "',OMApprovedDate='" + sReason + "',OMRemarks='" + sRemarks + "',GMName='--'  WHERE DBOMNo='" + sPONumber + "'", SQLCon);
                         break;
@@ -27732,9 +27732,106 @@ WHERE
         }
 
         /// <summary>
-        /// PO Status View — one row per DBOMNo. PurchaseOrder only.
-        /// Never uses MAX() on TEXT columns (Remarks, RejectReason, *Remarks, etc.).
+        /// PO approval amount thresholds (Amount + GST).
+        /// &lt;= 50,000 → PC can finalize.
+        /// &gt; 50,000 and &lt;= 2,50,000 → Vivek G / OM approval.
+        /// &gt; 2,50,000 → GM approval after OM.
         /// </summary>
+        public const decimal PO_OM_THRESHOLD = 50000m;
+        public const decimal PO_GM_THRESHOLD = 250000m;
+
+        /// <summary>
+        /// Returns TotalAmount (Amount+GST), BaseAmount, GSTAmount, ApprovalTier,
+        /// NextApprover, PCApprovalCase (9 or 10), OMApprovalCase (19 or 17).
+        /// </summary>
+        public DataSet fnGetPOAmountWithGST(string poNumber)
+        {
+            try
+            {
+                if (SQLCon == null || string.IsNullOrWhiteSpace(SQLCon.ConnectionString))
+                    fnGetConnectionString();
+
+                SQLDataset = new DataSet();
+                SQLCon.Open();
+                SQLCmd = new SqlCommand(@"
+SELECT
+    ISNULL(SUM(ISNULL(Amount, 0) + ISNULL(IGSTAmount, 0) + ISNULL(SGSTAmount, 0) + ISNULL(CGSTAmount, 0)), 0) AS TotalAmount,
+    ISNULL(SUM(ISNULL(Amount, 0)), 0) AS BaseAmount,
+    ISNULL(SUM(ISNULL(IGSTAmount, 0) + ISNULL(SGSTAmount, 0) + ISNULL(CGSTAmount, 0)), 0) AS GSTAmount
+FROM PurchaseOrder
+WHERE DBOMNo = @poNumber", SQLCon);
+                SQLCmd.Parameters.AddWithValue("@poNumber", poNumber ?? "");
+                SQLDadpr = new SqlDataAdapter(SQLCmd);
+                SQLDadpr.Fill(SQLDataset);
+                SQLCon.Close();
+
+                // Attach approval-route columns for the UI / legacy PurchaseOrder form
+                if (SQLDataset.Tables.Count > 0)
+                {
+                    DataTable t = SQLDataset.Tables[0];
+                    if (!t.Columns.Contains("ApprovalTier")) t.Columns.Add("ApprovalTier", typeof(string));
+                    if (!t.Columns.Contains("NextApprover")) t.Columns.Add("NextApprover", typeof(string));
+                    if (!t.Columns.Contains("PCApprovalCase")) t.Columns.Add("PCApprovalCase", typeof(int));
+                    if (!t.Columns.Contains("OMApprovalCase")) t.Columns.Add("OMApprovalCase", typeof(int));
+
+                    foreach (DataRow row in t.Rows)
+                    {
+                        decimal total = row["TotalAmount"] == DBNull.Value ? 0m : Convert.ToDecimal(row["TotalAmount"]);
+                        var route = GetPOApprovalRoute(total);
+                        row["ApprovalTier"] = route.Tier;
+                        row["NextApprover"] = route.NextApprover;
+                        row["PCApprovalCase"] = route.PCCase;
+                        row["OMApprovalCase"] = route.OMCase;
+                    }
+                }
+
+                return SQLDataset;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("fnGetPOAmountWithGST: " + ex.Message);
+                SQLCon.Close();
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Approval route from PO total (Amount + GST).
+        /// PCCase: 9 = PC finalizes, 10 = send to OM.
+        /// OMCase: 19 = OM finalizes (Vivek G band), 17 = OM then GM.
+        /// </summary>
+        public static (string Tier, string NextApprover, int PCCase, int OMCase) GetPOApprovalRoute(decimal totalWithGst)
+        {
+            // <= 50,000 — Purchase Committee can fully approve
+            if (totalWithGst <= PO_OM_THRESHOLD)
+                return ("PC_FINAL", "Purchase Committee (final)", 9, 19);
+
+            // > 50,000 and <= 2,50,000 — Vivek G / OM can finalize
+            if (totalWithGst <= PO_GM_THRESHOLD)
+                return ("OM_REQUIRED", "Vivek G / OM", 10, 19);
+
+            // > 2,50,000 — GM required after OM
+            return ("GM_REQUIRED", "GM (after OM)", 10, 17);
+        }
+
+        /// <summary>Convenience: which PC DAL case (9/10) to call for this PO.</summary>
+        public int fnGetPCApprovalCase(string poNumber)
+        {
+            DataSet ds = fnGetPOAmountWithGST(poNumber);
+            if (ds == null || ds.Tables.Count == 0 || ds.Tables[0].Rows.Count == 0)
+                return 10;
+            return Convert.ToInt32(ds.Tables[0].Rows[0]["PCApprovalCase"]);
+        }
+
+        /// <summary>Convenience: which OM DAL case (19/17) to call for this PO (Vivek G).</summary>
+        public int fnGetOMApprovalCase(string poNumber)
+        {
+            DataSet ds = fnGetPOAmountWithGST(poNumber);
+            if (ds == null || ds.Tables.Count == 0 || ds.Tables[0].Rows.Count == 0)
+                return 17;
+            return Convert.ToInt32(ds.Tables[0].Rows[0]["OMApprovalCase"]);
+        }
+
         public DataSet fnPOStatusList(string statusFilter, string poNumber, string vendor, string project, DateTime? fromDate, DateTime? toDate)
         {
             try
@@ -27874,16 +27971,22 @@ Result AS
             WHEN A.POApproved = 1
                  AND (H.POGeneratedBy IS NULL OR LTRIM(RTRIM(ISNULL(H.POGeneratedBy, ''))) = '')
                 THEN 'Ready to Generate'
-            WHEN A.OMApproved = 1
+            -- > 2,50,000: OM (Vivek G) done, waiting GM
+            WHEN A.TotalAmount > 250000
+                 AND A.OMApproved = 1
                  AND H.OMName IS NOT NULL
                  AND H.OMName <> '--'
                  AND A.POApproved = 0
-                 AND (H.GMName IS NULL OR LTRIM(RTRIM(ISNULL(H.GMName, ''))) = '')
+                 AND (H.GMName IS NULL OR LTRIM(RTRIM(ISNULL(H.GMName, ''))) = '' OR H.GMName = '--')
                 THEN 'Pending GM Approval'
-            WHEN H.PurchaseCommitee IS NOT NULL
+            -- > 50,000: PC done, waiting Vivek G / OM
+            WHEN A.TotalAmount > 50000
+                 AND H.PurchaseCommitee IS NOT NULL
                  AND LTRIM(RTRIM(H.PurchaseCommitee)) <> ''
-                 AND A.OMApproved = 0
                  AND A.POApproved = 0
+                 AND (A.OMApproved = 0
+                      OR H.OMName IS NULL
+                      OR LTRIM(RTRIM(ISNULL(H.OMName, ''))) = '')
                 THEN 'Pending OM Approval'
             WHEN A.PMApproved = 1
                  AND A.MHApproved = 1

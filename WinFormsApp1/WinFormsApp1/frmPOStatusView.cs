@@ -295,6 +295,12 @@ namespace WinFormsApp1
                 ? "Lifecycle: Active"
                 : "Lifecycle: " + finalStatus + " — " + Col(row, "FinalComment");
 
+            // Approval route from Amount + GST
+            decimal routeAmt = amount;
+            var route = DataAccessLayer.GetPOApprovalRoute(routeAmt);
+            lblFinal.Text += "  |  Route: " + route.NextApprover
+                + " (≤50k PC final · >50k–2.5L Vivek G/OM · >2.5L GM)";
+
             BuildPipeline(row);
             LayoutDetailPanels();
         }
