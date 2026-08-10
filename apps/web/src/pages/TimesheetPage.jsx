@@ -6,20 +6,20 @@ export default function TimesheetPage() {
       title="Time Sheet"
       subtitle="Log project / service hours by employee."
       crumbs={[{ label: 'Home', to: '/' }, { label: 'Time Sheet' }]}
-      endpoints={['/timesheets', '/time-sheets']}
+      endpoints={['/timesheets']}
       createEndpoint="/timesheets"
       createLabel="Add entry"
       allowEdit
       columns={[
-        { field: 'entryDate', header: 'Date', type: 'date', getValue: (r) => r.entryDate || r.date || r.workDate },
-        { field: 'employee', header: 'Employee', getValue: (r) => r.employee || r.userName || r.username },
+        { field: 'workDate', header: 'Date', type: 'date', getValue: (r) => r.workDate || r.entryDate || r.date },
+        { field: 'userName', header: 'Employee', getValue: (r) => r.userName || r.employee || r.username },
         { field: 'projectCode', header: 'Project' },
-        { field: 'hours', header: 'Hours', getValue: (r) => r.hours ?? r.duration },
-        { field: 'activity', header: 'Activity', getValue: (r) => r.activity || r.task },
+        { field: 'hours', header: 'Hours' },
+        { field: 'activity', header: 'Activity' },
         { field: 'status', header: 'Status', type: 'status' },
       ]}
       fields={[
-        { name: 'entryDate', label: 'Date', type: 'date', required: true },
+        { name: 'workDate', label: 'Date', type: 'date', required: true },
         { name: 'projectCode', label: 'Project code' },
         { name: 'hours', label: 'Hours', type: 'number', required: true, defaultValue: 8 },
         { name: 'activity', label: 'Activity', required: true },

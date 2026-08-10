@@ -3,25 +3,23 @@ import ResourcePage from '../../components/ResourcePage';
 export function IndentPage() {
   return (
     <ResourcePage
-      title="Project Indents"
-      subtitle="Raise material indents against projects for procurement."
+      title="Indent"
+      subtitle="Project material indents feeding procurement."
       crumbs={[{ label: 'Home', to: '/' }, { label: 'Projects' }, { label: 'Indent' }]}
-      endpoints={['/indents', '/projects/indents']}
+      endpoints={['/indents']}
       createEndpoint="/indents"
       createLabel="New indent"
+      allowEdit
       columns={[
-        { field: 'indentNo', header: 'Indent No', getValue: (r) => r.indentNo || r.docNo || r.id },
+        { field: 'indentNumber', header: 'Indent', getValue: (r) => r.indentNumber || r.indentNo || r.id },
         { field: 'projectCode', header: 'Project' },
-        { field: 'itemCode', header: 'Item', getValue: (r) => r.itemCode || r.itemDescription },
-        { field: 'quantity', header: 'Qty' },
-        { field: 'requiredDate', header: 'Required', type: 'date' },
+        { field: 'requestedBy', header: 'Requested by' },
+        { field: 'totalAmount', header: 'Amount', type: 'money' },
         { field: 'status', header: 'Status', type: 'status' },
+        { field: 'requestDate', header: 'Date', type: 'date', getValue: (r) => r.requestDate || r.createdAt },
       ]}
       fields={[
         { name: 'projectCode', label: 'Project code', required: true },
-        { name: 'itemCode', label: 'Item code', required: true },
-        { name: 'quantity', label: 'Quantity', type: 'number', required: true, defaultValue: 1 },
-        { name: 'requiredDate', label: 'Required date', type: 'date' },
         { name: 'remarks', label: 'Remarks', multiline: true },
       ]}
     />
@@ -32,25 +30,25 @@ export function ProjectListPage() {
   return (
     <ResourcePage
       title="Projects"
-      subtitle="Create and manage project master records."
-      crumbs={[{ label: 'Home', to: '/' }, { label: 'Projects' }, { label: 'List' }]}
-      endpoints={['/projects', '/masters/projects']}
-      createEndpoint="/projects"
+      subtitle="Create and approve projects."
+      crumbs={[{ label: 'Home', to: '/' }, { label: 'Projects' }, { label: 'Project List' }]}
+      endpoints={['/masters/projects']}
+      createEndpoint="/masters/projects"
       createLabel="Create project"
       allowEdit
       columns={[
         { field: 'projectCode', header: 'Code' },
         { field: 'projectName', header: 'Name' },
         { field: 'productNo', header: 'Product' },
-        { field: 'customerName', header: 'Customer', getValue: (r) => r.customerName || r.customerCode || '—' },
+        { field: 'customerName', header: 'Customer' },
         { field: 'status', header: 'Status', type: 'status' },
       ]}
       fields={[
         { name: 'projectCode', label: 'Project code', required: true },
         { name: 'projectName', label: 'Project name', required: true },
         { name: 'productNo', label: 'Product no' },
-        { name: 'customerCode', label: 'Customer code' },
-        { name: 'status', label: 'Status', options: ['Active', 'On Hold', 'Completed', 'Cancelled'], defaultValue: 'Active' },
+        { name: 'customerName', label: 'Customer' },
+        { name: 'status', label: 'Status', options: ['Active', 'Pending', 'Approved', 'Closed'], defaultValue: 'Active' },
       ]}
     />
   );
@@ -59,22 +57,23 @@ export function ProjectListPage() {
 export function BomApprovePage() {
   return (
     <ResourcePage
-      title="BOM Approve"
-      subtitle="Review and approve bills of material for projects."
+      title="Project BOM Approve"
+      subtitle="Review and approve project / product BOMs."
       crumbs={[{ label: 'Home', to: '/' }, { label: 'Projects' }, { label: 'BOM Approve' }]}
-      endpoints={['/projects/bom', '/boms']}
-      createLabel="Submit BOM"
+      endpoints={['/masters/boms']}
+      createEndpoint="/masters/boms"
+      createLabel="Create BOM"
       columns={[
-        { field: 'bomCode', header: 'BOM', getValue: (r) => r.bomCode || r.docNo || r.id },
+        { field: 'bomCode', header: 'BOM', getValue: (r) => r.bomCode || r.code },
         { field: 'projectCode', header: 'Project' },
-        { field: 'revision', header: 'Rev', getValue: (r) => r.revision || r.rev },
-        { field: 'itemCount', header: 'Items', getValue: (r) => r.itemCount ?? r.lines?.length ?? '—' },
+        { field: 'productCode', header: 'Product' },
         { field: 'status', header: 'Status', type: 'status' },
+        { field: 'createdAt', header: 'Created', type: 'datetime' },
       ]}
       fields={[
+        { name: 'bomCode', label: 'BOM code', required: true },
         { name: 'projectCode', label: 'Project code', required: true },
-        { name: 'bomCode', label: 'BOM code' },
-        { name: 'revision', label: 'Revision', defaultValue: 'A' },
+        { name: 'productCode', label: 'Product code' },
         { name: 'remarks', label: 'Remarks', multiline: true },
       ]}
     />
@@ -85,24 +84,22 @@ export function InstallationStatusPage() {
   return (
     <ResourcePage
       title="Installation Status"
-      subtitle="Track site installation progress by project."
+      subtitle="Update project installation progress."
       crumbs={[{ label: 'Home', to: '/' }, { label: 'Projects' }, { label: 'Installation' }]}
-      endpoints={['/projects/installation', '/installations']}
-      createLabel="Update status"
+      endpoints={['/masters/projects']}
+      allowCreate={false}
       allowEdit
+      createEndpoint="/masters/projects"
       columns={[
         { field: 'projectCode', header: 'Project' },
-        { field: 'site', header: 'Site', getValue: (r) => r.site || r.location },
-        { field: 'progressPct', header: 'Progress %', getValue: (r) => r.progressPct ?? r.progress },
-        { field: 'status', header: 'Status', type: 'status' },
-        { field: 'updatedAt', header: 'Updated', type: 'datetime', getValue: (r) => r.updatedAt || r.modifiedAt },
+        { field: 'projectName', header: 'Name' },
+        { field: 'installationStatus', header: 'Installation', type: 'status', getValue: (r) => r.installationStatus || r.status },
+        { field: 'shipmentDate', header: 'Shipment', type: 'date' },
       ]}
       fields={[
         { name: 'projectCode', label: 'Project code', required: true },
-        { name: 'site', label: 'Site' },
-        { name: 'progressPct', label: 'Progress %', type: 'number', defaultValue: 0 },
-        { name: 'status', label: 'Status', options: ['Not Started', 'In Progress', 'Completed', 'On Hold'], defaultValue: 'In Progress' },
-        { name: 'remarks', label: 'Remarks', multiline: true },
+        { name: 'installationStatus', label: 'Installation status', options: ['Not Started', 'In Progress', 'Completed', 'On Hold'], defaultValue: 'Not Started' },
+        { name: 'shipmentDate', label: 'Shipment date', type: 'date' },
       ]}
     />
   );
@@ -112,22 +109,15 @@ export function ProjectDocumentsPage() {
   return (
     <ResourcePage
       title="Project Documents"
-      subtitle="Document register for drawings, manuals and handover packs."
+      subtitle="Document checklist and collaboration attachments for projects."
       crumbs={[{ label: 'Home', to: '/' }, { label: 'Projects' }, { label: 'Documents' }]}
-      endpoints={['/projects/documents', '/documents']}
-      createLabel="Add document"
+      endpoints={['/masters/projects']}
+      allowCreate={false}
       columns={[
-        { field: 'docNo', header: 'Doc No', getValue: (r) => r.docNo || r.id },
         { field: 'projectCode', header: 'Project' },
-        { field: 'title', header: 'Title', getValue: (r) => r.title || r.fileName || r.name },
-        { field: 'docType', header: 'Type', getValue: (r) => r.docType || r.type },
-        { field: 'uploadedAt', header: 'Uploaded', type: 'datetime', getValue: (r) => r.uploadedAt || r.createdAt },
-      ]}
-      fields={[
-        { name: 'projectCode', label: 'Project code', required: true },
-        { name: 'title', label: 'Title', required: true },
-        { name: 'docType', label: 'Type', options: ['Drawing', 'Manual', 'Certificate', 'Other'], defaultValue: 'Drawing' },
-        { name: 'remarks', label: 'Remarks', multiline: true },
+        { field: 'projectName', header: 'Name' },
+        { field: 'status', header: 'Status', type: 'status' },
+        { field: 'customerName', header: 'Customer' },
       ]}
     />
   );

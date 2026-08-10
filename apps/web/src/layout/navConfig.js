@@ -53,6 +53,7 @@ export const navSections = [
       { label: 'Items', path: '/masters/items' },
       { label: 'Assets', path: '/masters/assets' },
       { label: 'Standard Cost', path: '/masters/standard-cost' },
+      { label: 'Sales Product Master', path: '/masters/sales-products' },
     ],
   },
   {

@@ -12,8 +12,9 @@ export function UsersPage() {
       title="Users"
       subtitle="Application users and role flags."
       crumbs={[{ label: 'Home', to: '/' }, { label: 'Users' }]}
-      endpoints={['/users', '/auth/users']}
-      createEndpoint="/users"
+      endpoints={['/masters/users']}
+      createEndpoint="/masters/users"
+      allowCreate={false}
       createLabel="Add user"
       allowEdit
       columns={[

@@ -4,26 +4,25 @@ export function NcPage() {
   return (
     <ResourcePage
       title="Non-Conformance (NC)"
-      subtitle="Quality non-conformance register and dispositions."
+      subtitle="Raise and track quality non-conformances."
       crumbs={[{ label: 'Home', to: '/' }, { label: 'Quality' }, { label: 'NC' }]}
-      endpoints={['/ncs', '/quality/ncs']}
-      createEndpoint="/ncs"
+      endpoints={['/quality/ncs']}
+      createEndpoint="/quality/ncs"
       createLabel="Raise NC"
       allowEdit
       columns={[
-        { field: 'ncNo', header: 'NC No', getValue: (r) => r.ncNo || r.docNo || r.id },
-        { field: 'itemCode', header: 'Item', getValue: (r) => r.itemCode || r.partCode },
-        { field: 'source', header: 'Source', getValue: (r) => r.source || r.origin },
+        { field: 'ncNumber', header: 'NC No', getValue: (r) => r.ncNumber || r.id },
+        { field: 'description', header: 'Description' },
+        { field: 'projectCode', header: 'Project' },
         { field: 'severity', header: 'Severity', type: 'status' },
         { field: 'status', header: 'Status', type: 'status' },
-        { field: 'raisedDate', header: 'Raised', type: 'date', getValue: (r) => r.raisedDate || r.createdAt },
+        { field: 'createdAt', header: 'Date', type: 'datetime' },
       ]}
       fields={[
-        { name: 'itemCode', label: 'Item / part code' },
-        { name: 'source', label: 'Source', options: ['Incoming', 'In-process', 'Customer', 'Audit'], defaultValue: 'Incoming' },
-        { name: 'severity', label: 'Severity', options: ['Minor', 'Major', 'Critical'], defaultValue: 'Minor' },
-        { name: 'description', label: 'Description', required: true, multiline: true, minRows: 3 },
-        { name: 'status', label: 'Status', options: ['Open', 'Under Review', 'Closed'], defaultValue: 'Open' },
+        { name: 'projectCode', label: 'Project code' },
+        { name: 'itemCode', label: 'Item code' },
+        { name: 'severity', label: 'Severity', options: ['Low', 'Medium', 'High', 'Critical'], defaultValue: 'Medium' },
+        { name: 'description', label: 'Description', multiline: true, required: true },
       ]}
     />
   );
@@ -33,27 +32,25 @@ export function EscalationsPage() {
   return (
     <ResourcePage
       title="Escalations"
-      subtitle="Quality and delivery escalations requiring management attention."
+      subtitle="Escalate open quality / delivery issues."
       crumbs={[{ label: 'Home', to: '/' }, { label: 'Quality' }, { label: 'Escalations' }]}
-      endpoints={['/escalations', '/quality/escalations', '/ncs']}
-      createEndpoint="/escalations"
-      createLabel="New escalation"
+      endpoints={['/quality/escalations']}
+      createEndpoint="/quality/escalations"
+      createLabel="Add escalation"
       allowEdit
       columns={[
-        { field: 'escalationNo', header: 'Escalation', getValue: (r) => r.escalationNo || r.docNo || r.id },
-        { field: 'relatedRef', header: 'Related', getValue: (r) => r.relatedRef || r.ncNo || r.refNo },
-        { field: 'owner', header: 'Owner', getValue: (r) => r.owner || r.assignedTo },
-        { field: 'priority', header: 'Priority', type: 'status' },
+        { field: 'escalationNumber', header: 'Escalation', getValue: (r) => r.escalationNumber || r.id },
+        { field: 'ncNumber', header: 'NC Ref' },
+        { field: 'title', header: 'Title', getValue: (r) => r.title || r.subject },
+        { field: 'level', header: 'Level' },
         { field: 'status', header: 'Status', type: 'status' },
-        { field: 'dueDate', header: 'Due', type: 'date' },
+        { field: 'createdAt', header: 'Date', type: 'datetime' },
       ]}
       fields={[
-        { name: 'relatedRef', label: 'Related NC / ref' },
-        { name: 'owner', label: 'Owner' },
-        { name: 'priority', label: 'Priority', options: ['Low', 'Medium', 'High'], defaultValue: 'High' },
-        { name: 'dueDate', label: 'Due date', type: 'date' },
-        { name: 'description', label: 'Description', required: true, multiline: true },
-        { name: 'status', label: 'Status', options: ['Open', 'In Progress', 'Closed'], defaultValue: 'Open' },
+        { name: 'title', label: 'Title', required: true },
+        { name: 'ncNumber', label: 'NC number' },
+        { name: 'level', label: 'Level', options: ['L1', 'L2', 'L3'], defaultValue: 'L1' },
+        { name: 'description', label: 'Description', multiline: true },
       ]}
     />
   );

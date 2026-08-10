@@ -21,6 +21,7 @@ import {
   CitiesPage,
   CustomersPage,
   ItemsPage,
+  SalesProductsPage,
   StandardCostPage,
   VendorsPage,
 } from './pages/masters/MastersPages';
@@ -95,6 +96,7 @@ export default function App() {
         <Route path="masters/items" element={<ItemsPage />} />
         <Route path="masters/assets" element={<AssetsPage />} />
         <Route path="masters/standard-cost" element={<StandardCostPage />} />
+        <Route path="masters/sales-products" element={<SalesProductsPage />} />
 
         <Route path="stores/stock-ledger" element={<StockLedgerPage />} />
         <Route path="stores/gin" element={<GinReceiptPage />} />

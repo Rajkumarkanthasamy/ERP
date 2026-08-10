@@ -6,10 +6,10 @@ export function CitiesPage() {
       title="Cities"
       subtitle="Maintain city master used across customers, vendors and projects."
       crumbs={[{ label: 'Home', to: '/' }, { label: 'Masters' }, { label: 'Cities' }]}
-      endpoints={['/cities', '/masters/cities']}
+      endpoints={['/masters/cities']}
+      createEndpoint="/masters/cities"
       createLabel="Add city"
       allowEdit
-      allowDelete
       columns={[
         { field: 'cityCode', header: 'Code', getValue: (r) => r.cityCode || r.code },
         { field: 'cityName', header: 'City', getValue: (r) => r.cityName || r.name },
@@ -33,7 +33,8 @@ export function CustomersPage() {
       title="Customers"
       subtitle="Customer master for sales, projects and delivery."
       crumbs={[{ label: 'Home', to: '/' }, { label: 'Masters' }, { label: 'Customers' }]}
-      endpoints={['/customers', '/masters/customers']}
+      endpoints={['/masters/customers']}
+      createEndpoint="/masters/customers"
       createLabel="Add customer"
       allowEdit
       columns={[
@@ -63,8 +64,8 @@ export function VendorsPage() {
       title="Vendors"
       subtitle="Vendor master for procurement and GRN."
       crumbs={[{ label: 'Home', to: '/' }, { label: 'Masters' }, { label: 'Vendors' }]}
-      endpoints={['/vendors', '/masters/vendors']}
-      createEndpoint="/vendors"
+      endpoints={['/masters/vendors']}
+      createEndpoint="/masters/vendors"
       createLabel="Add vendor"
       allowEdit
       columns={[
@@ -90,8 +91,8 @@ export function ItemsPage() {
       title="Items"
       subtitle="Item master with UOM, HSN and costing fields."
       crumbs={[{ label: 'Home', to: '/' }, { label: 'Masters' }, { label: 'Items' }]}
-      endpoints={['/items', '/masters/items']}
-      createEndpoint="/items"
+      endpoints={['/masters/items']}
+      createEndpoint="/masters/items"
       createLabel="Add item"
       allowEdit
       columns={[
@@ -99,16 +100,15 @@ export function ItemsPage() {
         { field: 'itemDescription', header: 'Description' },
         { field: 'make', header: 'Make' },
         { field: 'uom', header: 'UOM' },
-        { field: 'hsnCode', header: 'HSN' },
         { field: 'standardCost', header: 'Std cost', type: 'money' },
-        { field: 'latestPurchasePrice', header: 'Latest', type: 'money' },
+        { field: 'latestPurchasePrice', header: 'Last PO', type: 'money' },
       ]}
       fields={[
         { name: 'itemCode', label: 'Item code', required: true },
         { name: 'itemDescription', label: 'Description', required: true },
-        { name: 'specification', label: 'Specification', multiline: true },
+        { name: 'specification', label: 'Specification' },
         { name: 'make', label: 'Make' },
-        { name: 'mfgPartNo', label: 'MFG part no' },
+        { name: 'mfgPartNo', label: 'Mfg part no' },
         { name: 'uom', label: 'UOM', defaultValue: 'NOS' },
         { name: 'hsnCode', label: 'HSN' },
         { name: 'standardCost', label: 'Standard cost', type: 'number', defaultValue: 0 },
@@ -120,27 +120,28 @@ export function ItemsPage() {
 export function AssetsPage() {
   return (
     <ResourcePage
-      title="Assets"
-      subtitle="Fixed assets and equipment register."
+      title="Fixed Assets"
+      subtitle="Add and update fixed asset register."
       crumbs={[{ label: 'Home', to: '/' }, { label: 'Masters' }, { label: 'Assets' }]}
-      endpoints={['/assets', '/masters/assets']}
+      endpoints={['/masters/assets']}
+      createEndpoint="/masters/assets"
       createLabel="Add asset"
       allowEdit
       columns={[
-        { field: 'assetCode', header: 'Code', getValue: (r) => r.assetCode || r.code },
-        { field: 'assetName', header: 'Name', getValue: (r) => r.assetName || r.name },
-        { field: 'category', header: 'Category' },
+        { field: 'assetCode', header: 'Asset', getValue: (r) => r.assetCode || r.assetSlNo },
+        { field: 'assetDescription', header: 'Description', getValue: (r) => r.assetDescription || r.description },
         { field: 'location', header: 'Location' },
-        { field: 'purchaseValue', header: 'Value', type: 'money', getValue: (r) => r.purchaseValue || r.value },
+        { field: 'vendorName', header: 'Vendor' },
+        { field: 'amount', header: 'Amount', type: 'money' },
         { field: 'status', header: 'Status', type: 'status' },
       ]}
       fields={[
         { name: 'assetCode', label: 'Asset code', required: true },
-        { name: 'assetName', label: 'Asset name', required: true },
-        { name: 'category', label: 'Category' },
+        { name: 'assetDescription', label: 'Description', required: true },
         { name: 'location', label: 'Location' },
-        { name: 'purchaseValue', label: 'Purchase value', type: 'number' },
-        { name: 'status', label: 'Status', options: ['Active', 'Under Maintenance', 'Disposed'], defaultValue: 'Active' },
+        { name: 'vendorName', label: 'Vendor' },
+        { name: 'amount', label: 'Amount', type: 'number', defaultValue: 0 },
+        { name: 'remarks', label: 'Remarks', multiline: true },
       ]}
     />
   );
@@ -150,22 +151,48 @@ export function StandardCostPage() {
   return (
     <ResourcePage
       title="Standard Cost"
-      subtitle="Review and update item standard costs."
+      subtitle="Review and maintain item standard costs."
       crumbs={[{ label: 'Home', to: '/' }, { label: 'Masters' }, { label: 'Standard Cost' }]}
-      endpoints={['/items', '/masters/items', '/masters/standard-cost']}
+      endpoints={['/masters/items']}
       allowCreate={false}
       allowEdit
-      updateEndpoint={(row) => `/items/${row.id || row.itemCode}`}
+      createEndpoint="/masters/items"
       columns={[
         { field: 'itemCode', header: 'Item' },
         { field: 'itemDescription', header: 'Description' },
         { field: 'uom', header: 'UOM' },
-        { field: 'standardCost', header: 'Standard cost', type: 'money' },
-        { field: 'latestPurchasePrice', header: 'Latest purchase', type: 'money' },
+        { field: 'standardCost', header: 'Std cost', type: 'money' },
+        { field: 'latestPurchasePrice', header: 'Last purchase', type: 'money' },
       ]}
       fields={[
-        { name: 'itemCode', label: 'Item code' },
+        { name: 'itemCode', label: 'Item code', required: true },
         { name: 'standardCost', label: 'Standard cost', type: 'number', required: true },
+      ]}
+    />
+  );
+}
+
+export function SalesProductsPage() {
+  return (
+    <ResourcePage
+      title="Sales Product Master"
+      subtitle="Finished goods / sales products for quotes and projects."
+      crumbs={[{ label: 'Home', to: '/' }, { label: 'Masters' }, { label: 'Sales Products' }]}
+      endpoints={['/masters/sales-products']}
+      createEndpoint="/masters/sales-products"
+      createLabel="Add product"
+      allowEdit
+      columns={[
+        { field: 'productCode', header: 'Code' },
+        { field: 'productName', header: 'Name' },
+        { field: 'productType', header: 'Type' },
+        { field: 'status', header: 'Status', type: 'status' },
+      ]}
+      fields={[
+        { name: 'productCode', label: 'Product code', required: true },
+        { name: 'productName', label: 'Product name', required: true },
+        { name: 'productType', label: 'Type', defaultValue: 'Machine' },
+        { name: 'status', label: 'Status', options: ['Active', 'Inactive'], defaultValue: 'Active' },
       ]}
     />
   );

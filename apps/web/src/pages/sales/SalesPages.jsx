@@ -6,12 +6,12 @@ export function EnquiryRegisterPage() {
       title="Enquiry Register"
       subtitle="Capture and track customer enquiries."
       crumbs={[{ label: 'Home', to: '/' }, { label: 'Sales' }, { label: 'Enquiries' }]}
-      endpoints={['/enquiries', '/sales/enquiries']}
-      createEndpoint="/enquiries"
+      endpoints={['/sales/enquiries']}
+      createEndpoint="/sales/enquiries"
       createLabel="New enquiry"
       allowEdit
       columns={[
-        { field: 'enquiryNo', header: 'Enquiry', getValue: (r) => r.enquiryNo || r.docNo || r.id },
+        { field: 'enquiryNumber', header: 'Enquiry', getValue: (r) => r.enquiryNumber || r.enquiryNo || r.id },
         { field: 'customerName', header: 'Customer', getValue: (r) => r.customerName || r.customerCode },
         { field: 'subject', header: 'Subject', getValue: (r) => r.subject || r.title },
         { field: 'source', header: 'Source' },
@@ -35,21 +35,21 @@ export function OpportunitiesPage() {
       title="Opportunities"
       subtitle="Sales pipeline opportunities linked to enquiries."
       crumbs={[{ label: 'Home', to: '/' }, { label: 'Sales' }, { label: 'Opportunities' }]}
-      endpoints={['/opportunities', '/sales/opportunities']}
-      createEndpoint="/opportunities"
+      endpoints={['/sales/opportunities']}
+      createEndpoint="/sales/opportunities"
       createLabel="New opportunity"
       allowEdit
       columns={[
-        { field: 'opportunityNo', header: 'Opp No', getValue: (r) => r.opportunityNo || r.id },
+        { field: 'opportunityNumber', header: 'Opp No', getValue: (r) => r.opportunityNumber || r.opportunityNo || r.id },
         { field: 'customerName', header: 'Customer' },
         { field: 'title', header: 'Title', getValue: (r) => r.title || r.name },
-        { field: 'value', header: 'Value', type: 'money', getValue: (r) => r.value || r.amount },
+        { field: 'expectedValue', header: 'Value', type: 'money', getValue: (r) => r.expectedValue || r.value || r.amount },
         { field: 'stage', header: 'Stage', type: 'status', getValue: (r) => r.stage || r.status },
       ]}
       fields={[
         { name: 'customerName', label: 'Customer', required: true },
         { name: 'title', label: 'Title', required: true },
-        { name: 'value', label: 'Value (INR)', type: 'number', defaultValue: 0 },
+        { name: 'expectedValue', label: 'Value (INR)', type: 'number', defaultValue: 0 },
         { name: 'stage', label: 'Stage', options: ['Prospect', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'], defaultValue: 'Prospect' },
       ]}
     />
@@ -62,22 +62,22 @@ export function QuotesPage() {
       title="Quotes"
       subtitle="Prepare and track commercial quotations."
       crumbs={[{ label: 'Home', to: '/' }, { label: 'Sales' }, { label: 'Quotes' }]}
-      endpoints={['/quotes', '/sales/quotes']}
-      createEndpoint="/quotes"
+      endpoints={['/sales/quotes']}
+      createEndpoint="/sales/quotes"
       createLabel="New quote"
       allowEdit
       columns={[
-        { field: 'quoteNo', header: 'Quote', getValue: (r) => r.quoteNo || r.docNo || r.id },
+        { field: 'quoteNumber', header: 'Quote', getValue: (r) => r.quoteNumber || r.quoteNo || r.docNo || r.id },
         { field: 'customerName', header: 'Customer' },
         { field: 'projectCode', header: 'Project' },
-        { field: 'amount', header: 'Amount', type: 'money', getValue: (r) => r.amount || r.totalAmount },
+        { field: 'totalAmount', header: 'Amount', type: 'money', getValue: (r) => r.totalAmount || r.amount },
         { field: 'quoteDate', header: 'Date', type: 'date', getValue: (r) => r.quoteDate || r.createdAt },
         { field: 'status', header: 'Status', type: 'status' },
       ]}
       fields={[
         { name: 'customerName', label: 'Customer', required: true },
         { name: 'projectCode', label: 'Project code' },
-        { name: 'amount', label: 'Amount', type: 'number', required: true },
+        { name: 'totalAmount', label: 'Amount', type: 'number', required: true },
         { name: 'status', label: 'Status', options: ['Draft', 'Sent', 'Accepted', 'Rejected'], defaultValue: 'Draft' },
         { name: 'remarks', label: 'Remarks', multiline: true },
       ]}
