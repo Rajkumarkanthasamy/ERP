@@ -1,11 +1,18 @@
 import { Router } from 'express';
 import { authRequired, requirePermission } from '../middleware/auth.js';
+import { isMssqlMode } from '../db/mssql.js';
 import * as masterService from '../services/masterService.js';
+import * as legacy from '../services/mssqlLegacyService.js';
 
 const router = Router();
 
-router.get('/vendors', authRequired, (req, res) => {
-  res.json(masterService.listVendors(req.query.q));
+router.get('/vendors', authRequired, async (req, res) => {
+  try {
+    if (isMssqlMode()) return res.json(await legacy.listVendors());
+    res.json(masterService.listVendors(req.query.q));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/vendors', authRequired, (req, res) => {
@@ -58,8 +65,13 @@ router.post('/projects/:code/approve', authRequired, requirePermission('canAppro
   }
 });
 
-router.get('/items', authRequired, (req, res) => {
-  res.json(masterService.listItems(req.query.q));
+router.get('/items', authRequired, async (req, res) => {
+  try {
+    if (isMssqlMode()) return res.json(await legacy.listItems(req.query.q));
+    res.json(masterService.listItems(req.query.q));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/items', authRequired, (req, res) => {

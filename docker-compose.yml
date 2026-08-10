@@ -4,10 +4,16 @@ services:
       context: ./apps/api
       dockerfile: Dockerfile
     container_name: biss-erp-api
+    env_file:
+      - ./apps/api/.env
     environment:
       NODE_ENV: production
       PORT: 4000
       JWT_SECRET: biss-erp-change-me-in-production
+      # Default docker demo uses sqlite inside the volume.
+      # To use SQL Server, set DB_CLIENT=mssql and MSSQL_* in apps/api/.env
+      # and ensure the container can reach GTKA064W111 (host network / VPN).
+      DB_CLIENT: ${DB_CLIENT:-sqlite}
       DB_PATH: /data/erp.db
       UPLOAD_DIR: /data/uploads
       CORS_ORIGIN: http://localhost:8080

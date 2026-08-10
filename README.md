@@ -26,7 +26,14 @@ Legacy WinForms archives remain in the repo (`Code.zip`, `WinFormsApp1.zip`) as 
 | API | Node.js, Express, better-sqlite3, JWT, bcryptjs |
 | Runtime | Docker Compose (optional) or plain Node |
 
-## Quick start (local)
+## Database
+
+- **Default:** SQLite demo (`apps/api/data/erp.db`)
+- **Your live ERP data:** SQL Server `ERP_Database` on `GTKA064W111\SQLEXPRESS01` (same as the C# app / SSMS)
+
+See **[docs/DATABASE.md](docs/DATABASE.md)** for SSMS steps and how to point the Node API at SQL Server via `apps/api/.env` (`DB_CLIENT=mssql`).
+
+## Quick start (local SQLite demo)
 
 ```bash
 npm install
@@ -35,6 +42,18 @@ npm run dev           # API :4000 + Web :5173
 ```
 
 Open http://localhost:5173
+
+### Quick start (your SQL Server)
+
+```bash
+cp apps/api/.env.example apps/api/.env
+# edit MSSQL_* values, set DB_CLIENT=mssql
+npm install
+npm run dev -w apps/api
+# check http://localhost:4000/api/health/db
+```
+
+Login with existing ERP `Login` table users (same as C#).
 
 ### Demo logins
 
