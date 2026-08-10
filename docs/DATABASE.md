@@ -88,17 +88,23 @@ With `DB_CLIENT=mssql`, login uses the legacy **`Login`** table (same as C#):
 
 Then open the React app (`npm run dev -w apps/web`) and use those ERP users.
 
-### What works today against SQL Server
+### What works today against SQL Server (full procurement process)
 
-**Reads from live data:**
+Same process as the C# app — **reads and writes**:
 
-- Login (`Login` table)
-- Dashboard PR/PO counts
-- Purchase Requests list/detail
-- Purchase Orders / PO Status
-- Vendors / Items (from `VendorMaster` / `ItemMaster`)
+1. Login (`Login` table — same users/passwords as C#)
+2. Dashboard counts
+3. **Create PR** → `PurchaseRequest` + `PurchaseRequestDetailNew` (₹12L auto-split)
+4. **Approve / Reject / Hold / Release** (+ Kanban moves)
+5. **PR Clubbing** (same vendor, ≤ ₹12L)
+6. **PR → PO convert** → `PurchaseOrder`
+7. **PO Approval** PM → MH → PC → OM/GM (amount + GST tiers)
+8. **Generate / Send PO**
+9. **PO Status View**
+10. **GRN** receive (needs `ProcurementGRN` tables — run `apps/api/sql/Phase3_Schema_Alignment.sql` once in SSMS)
+11. Vendors / Items masters (read)
 
-**Writes** (create/approve/convert) for SQL Server are not fully enabled yet — those still work in SQLite demo mode, or continue in the C# app until write-back is completed.
+See **[PROCESS.md](PROCESS.md)** for the full flow diagram.
 
 ---
 

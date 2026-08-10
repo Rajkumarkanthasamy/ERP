@@ -55,6 +55,8 @@ npm run dev -w apps/api
 
 Login with existing ERP `Login` table users (same as C#).
 
+Full procurement process (PR → Approve → Club → PO → Approve → GRN) writes to the same SQL Server tables as the C# app. Details: [docs/PROCESS.md](docs/PROCESS.md).
+
 ### Demo logins
 
 | User | Password | Role |
