@@ -10,6 +10,10 @@ namespace WinFormsApp1
         private readonly DataAccessLayer _dal = new DataAccessLayer();
         private string _selectedPO = "";
         private bool _splitsInitialized;
+        private bool _fittingToScreen;
+        private Size _lastLayoutSize = Size.Empty;
+        private double _mainSplitRatio = 0.48;
+        private double _detailSplitRatio = 0.55;
 
         private static readonly string[] StatusOptions =
         {
@@ -39,6 +43,7 @@ namespace WinFormsApp1
 
         private void frmPOStatusView_Load(object sender, EventArgs e)
         {
+            FitFormToScreen();
             lblUser.Text = AppSession.IsAuthenticated ? AppSession.DisplayLabel : Environment.UserName;
             cmbStatus.Items.Clear();
             cmbStatus.Items.AddRange(StatusOptions);
@@ -52,26 +57,118 @@ namespace WinFormsApp1
             LoadStatusList();
         }
 
-        private void frmPOStatusView_Resize(object sender, EventArgs e)
+        private void frmPOStatusView_Shown(object sender, EventArgs e)
         {
+            // Re-fit after the form is actually visible (parent/DPI applied).
+            FitFormToScreen();
+            _splitsInitialized = false;
             LayoutDetailPanels();
         }
 
-        /// <summary>Keep Close button aligned; set split distances once after real size is known.</summary>
+        private void frmPOStatusView_Resize(object sender, EventArgs e)
+        {
+            if (_fittingToScreen)
+                return;
+            LayoutDetailPanels();
+        }
+
+        /// <summary>
+        /// Size the form to the current monitor working area so it fits
+        /// laptops, desktops, and scaled DPI displays without clipping.
+        /// </summary>
+        private void FitFormToScreen()
+        {
+            if (_fittingToScreen)
+                return;
+
+            _fittingToScreen = true;
+            try
+            {
+                Screen screen = Screen.FromControl(this);
+                if (screen == null)
+                    screen = Screen.PrimaryScreen;
+                if (screen == null)
+                    return;
+
+                Rectangle work = screen.WorkingArea;
+
+                // Preferred size: ~92% of working area, but never smaller than MinimumSize
+                // and never larger than the working area.
+                int targetW = Math.Max(MinimumSize.Width, (int)(work.Width * 0.92));
+                int targetH = Math.Max(MinimumSize.Height, (int)(work.Height * 0.90));
+                targetW = Math.Min(targetW, work.Width - 16);
+                targetH = Math.Min(targetH, work.Height - 16);
+
+                // Very small screens: maximize so nothing is cut off.
+                if (work.Width < 1100 || work.Height < 700)
+                {
+                    WindowState = FormWindowState.Maximized;
+                }
+                else
+                {
+                    if (WindowState == FormWindowState.Maximized)
+                        WindowState = FormWindowState.Normal;
+
+                    Size = new Size(targetW, targetH);
+
+                    // Center on the same monitor
+                    Left = work.Left + Math.Max(0, (work.Width - Width) / 2);
+                    Top = work.Top + Math.Max(0, (work.Height - Height) / 2);
+                }
+
+                AdaptChromeForWidth();
+            }
+            finally
+            {
+                _fittingToScreen = false;
+            }
+        }
+
+        /// <summary>Hide/show header subtitle and enable filter scroll on narrow screens.</summary>
+        private void AdaptChromeForWidth()
+        {
+            int w = ClientSize.Width;
+            if (lblSubtitle != null)
+                lblSubtitle.Visible = w >= 980;
+
+            if (panelFilters != null)
+                panelFilters.AutoScroll = w < 1050;
+
+            if (panelPipeline != null)
+            {
+                // Slightly shorter pipeline strip on short screens to leave room for grids
+                panelPipeline.Height = ClientSize.Height < 700 ? 90 : 108;
+            }
+
+            if (panelInfo != null)
+                panelInfo.Height = ClientSize.Height < 700 ? 88 : 100;
+        }
+
+        /// <summary>Keep Close button / splits / chrome aligned as the form resizes.</summary>
         private void LayoutDetailPanels()
         {
+            AdaptChromeForWidth();
+
             if (btnClose != null && panelInfo != null && panelInfo.ClientSize.Width > 0)
                 btnClose.Left = Math.Max(220, panelInfo.ClientSize.Width - btnClose.Width - 12);
 
-            if (_splitsInitialized)
+            if (splitMain == null || splitDetail == null)
                 return;
 
-            if (splitMain != null && splitMain.ClientSize.Height > 200
-                && splitDetail != null && splitDetail.ClientSize.Width > 200)
+            bool sizeChangedSignificantly =
+                _lastLayoutSize.IsEmpty
+                || Math.Abs(ClientSize.Width - _lastLayoutSize.Width) > 40
+                || Math.Abs(ClientSize.Height - _lastLayoutSize.Height) > 40;
+
+            if (!_splitsInitialized
+                || (sizeChangedSignificantly
+                    && splitMain.ClientSize.Height > 200
+                    && splitDetail.ClientSize.Width > 200))
             {
-                SafeSetSplitterDistance(splitMain, preferredRatio: 0.48);
-                SafeSetSplitterDistance(splitDetail, preferredRatio: 0.55);
+                SafeSetSplitterDistance(splitMain, _mainSplitRatio);
+                SafeSetSplitterDistance(splitDetail, _detailSplitRatio);
                 _splitsInitialized = true;
+                _lastLayoutSize = ClientSize;
             }
         }
 

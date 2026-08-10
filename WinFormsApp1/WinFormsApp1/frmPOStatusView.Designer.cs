@@ -109,32 +109,39 @@ namespace WinFormsApp1
             lblSubtitle.Font = new Font("Segoe UI", 8.5F);
             lblSubtitle.ForeColor = Color.FromArgb(170, 195, 215);
             lblSubtitle.Location = new Point(320, 42);
+            lblSubtitle.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+            lblSubtitle.AutoEllipsis = true;
+            lblSubtitle.MaximumSize = new Size(700, 20);
             lblSubtitle.Text = "Track every PO from create → approve → generate → receive / close";
 
-            // ===== Filters (table aligned) =====
+            // ===== Filters (table aligned, scrolls on narrow screens) =====
             panelFilters.BackColor = Color.White;
             panelFilters.Dock = DockStyle.Top;
             panelFilters.Height = 78;
             panelFilters.Padding = new Padding(8, 6, 8, 4);
+            panelFilters.AutoScroll = true;
             panelFilters.Controls.Add(tblFilters);
 
             tblFilters.ColumnCount = 12;
             tblFilters.RowCount = 2;
             tblFilters.Dock = DockStyle.Fill;
+            tblFilters.AutoSize = true;
+            // Mix absolute labels + percent fields so layout flexes with screen width
             tblFilters.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 52F));   // PO label
-            tblFilters.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120F));  // PO box
+            tblFilters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12F));    // PO box
             tblFilters.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 55F));   // Vendor label
-            tblFilters.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130F));  // Vendor box
+            tblFilters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 14F));    // Vendor box
             tblFilters.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 55F));   // Project label
-            tblFilters.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130F));  // Project box
+            tblFilters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 14F));    // Project box
             tblFilters.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 50F));   // Status label
-            tblFilters.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 200F));  // Status combo
+            tblFilters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));    // Status combo
             tblFilters.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90F));   // Search
             tblFilters.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80F));   // Reset
             tblFilters.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90F));   // Count
-            tblFilters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));   // spacer
+            tblFilters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40F));    // spacer
             tblFilters.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
             tblFilters.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
+            tblFilters.MinimumSize = new Size(780, 64);
             tblFilters.Controls.Add(lblFilterPO, 0, 0);
             tblFilters.Controls.Add(txtPONumber, 1, 0);
             tblFilters.Controls.Add(lblFilterVendor, 2, 0);
@@ -347,8 +354,8 @@ namespace WinFormsApp1
             dgvTimeline.BorderStyle = BorderStyle.FixedSingle;
 
             // ===== Form =====
-            AutoScaleDimensions = new SizeF(7F, 15F);
-            AutoScaleMode = AutoScaleMode.Font;
+            AutoScaleDimensions = new SizeF(96F, 96F);
+            AutoScaleMode = AutoScaleMode.Dpi;
             BackColor = Color.FromArgb(240, 244, 248);
             ClientSize = new Size(1120, 720);
             // Dock order: Fill first, then Top panels (last Top = highest)
@@ -356,11 +363,17 @@ namespace WinFormsApp1
             Controls.Add(panelSummary);
             Controls.Add(panelFilters);
             Controls.Add(panelHeader);
-            MinimumSize = new Size(1000, 640);
+            MinimumSize = new Size(860, 560);
+            MaximumSize = new Size(0, 0); // no max — can fill any monitor
             Name = "frmPOStatusView";
-            StartPosition = FormStartPosition.CenterParent;
+            StartPosition = FormStartPosition.CenterScreen;
+            WindowState = FormWindowState.Normal;
+            FormBorderStyle = FormBorderStyle.Sizable;
+            MaximizeBox = true;
+            MinimizeBox = true;
             Text = "PO Status View";
             Load += frmPOStatusView_Load;
+            Shown += frmPOStatusView_Shown;
             Resize += frmPOStatusView_Resize;
 
             panelHeader.ResumeLayout(false);
