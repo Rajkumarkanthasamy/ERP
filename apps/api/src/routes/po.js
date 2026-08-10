@@ -3,6 +3,7 @@ import { authRequired, requirePermission } from '../middleware/auth.js';
 import { isMssqlMode } from '../db/mssql.js';
 import * as poService from '../services/poService.js';
 import * as legacy from '../services/mssqlLegacyService.js';
+import * as processSvc from '../services/mssqlProcessService.js';
 
 const router = Router();
 
@@ -10,7 +11,8 @@ router.get('/ready-prs', authRequired, async (_req, res) => {
   try {
     if (isMssqlMode()) {
       const rows = await legacy.listPurchaseRequests({ status: 'Approved' });
-      return res.json(rows);
+      const partial = await legacy.listPurchaseRequests({ status: 'Partially Converted' });
+      return res.json([...rows, ...partial]);
     }
     res.json(poService.listApprovedPRsForPO());
   } catch (err) {
@@ -18,10 +20,10 @@ router.get('/ready-prs', authRequired, async (_req, res) => {
   }
 });
 
-router.post('/convert', authRequired, requirePermission('canGeneratePO'), (req, res) => {
+router.post('/convert', authRequired, requirePermission('canGeneratePO'), async (req, res) => {
   try {
     if (isMssqlMode()) {
-      return res.status(501).json({ error: 'PR→PO convert write to SQL Server is not enabled yet.' });
+      return res.status(201).json(await processSvc.convertPRsToPO({ ...req.body, user: req.user }));
     }
     res.status(201).json(poService.convertPRsToPO({ ...req.body, user: req.user }));
   } catch (err) {
@@ -43,9 +45,7 @@ router.get('/approvals', authRequired, async (_req, res) => {
 
 router.get('/status', authRequired, async (req, res) => {
   try {
-    if (isMssqlMode()) {
-      return res.json(await legacy.listPurchaseOrders(req.query));
-    }
+    if (isMssqlMode()) return res.json(await legacy.listPurchaseOrders(req.query));
     res.json(poService.listPOStatus(req.query));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -55,7 +55,9 @@ router.get('/status', authRequired, async (req, res) => {
 router.get('/variance/:prNumber', authRequired, (req, res) => {
   try {
     if (isMssqlMode()) {
-      return res.status(501).json({ error: 'Price variance against SQL Server is not enabled yet.' });
+      return res.status(501).json({
+        error: 'Price variance UI against SQL Server last-PO compare is next; use C# screen meanwhile.',
+      });
     }
     res.json(poService.priceVariance(req.params.prNumber));
   } catch (err) {
@@ -79,10 +81,10 @@ router.get('/:poRef', authRequired, async (req, res) => {
   }
 });
 
-router.post('/:poRef/approve', authRequired, requirePermission('canApprovePO'), (req, res) => {
+router.post('/:poRef/approve', authRequired, requirePermission('canApprovePO'), async (req, res) => {
   try {
     if (isMssqlMode()) {
-      return res.status(501).json({ error: 'PO approval write to SQL Server is not enabled yet.' });
+      return res.json(await processSvc.approvePO(req.params.poRef, { ...req.body, user: req.user }));
     }
     res.json(poService.approvePO(req.params.poRef, { ...req.body, user: req.user }));
   } catch (err) {

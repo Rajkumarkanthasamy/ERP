@@ -3,15 +3,14 @@ import { authRequired, requirePermission } from '../middleware/auth.js';
 import { isMssqlMode } from '../db/mssql.js';
 import * as prService from '../services/prService.js';
 import * as legacy from '../services/mssqlLegacyService.js';
+import * as processSvc from '../services/mssqlProcessService.js';
 import { PR_STATUS } from '../constants.js';
 
 const router = Router();
 
 router.get('/', authRequired, async (req, res) => {
   try {
-    if (isMssqlMode()) {
-      return res.json(await legacy.listPurchaseRequests(req.query));
-    }
+    if (isMssqlMode()) return res.json(await legacy.listPurchaseRequests(req.query));
     res.json(prService.listPRs(req.query));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -47,24 +46,40 @@ router.get('/kanban', authRequired, async (_req, res) => {
   }
 });
 
-router.post('/kanban/move', authRequired, requirePermission('canApprovePR'), (req, res) => {
+router.post('/kanban/move', authRequired, requirePermission('canApprovePR'), async (req, res) => {
   try {
-    if (isMssqlMode()) {
-      return res.status(501).json({
-        error: 'Kanban move write-back to SQL Server is not enabled yet. Use the C# app or SQLite mode for writes.',
-      });
-    }
     const { prNumber, targetStatus } = req.body || {};
+    const actionMap = {
+      [PR_STATUS.PENDING]: 'release',
+      [PR_STATUS.ON_HOLD]: 'hold',
+      [PR_STATUS.APPROVED]: 'approve',
+      [PR_STATUS.REJECTED]: 'reject',
+    };
+    const action = actionMap[targetStatus];
+    if (!action) {
+      return res.status(400).json({ error: 'Kanban move only to Pending / On Hold / Approved / Rejected' });
+    }
+    if (isMssqlMode()) {
+      return res.json(
+        await processSvc.updatePRStatus(prNumber, {
+          action,
+          reason: `Kanban move to ${targetStatus}`,
+          user: req.user,
+        })
+      );
+    }
     res.json(prService.moveKanbanCard(prNumber, targetStatus, req.user));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.post('/club', authRequired, requirePermission('canApprovePR'), (req, res) => {
+router.post('/club', authRequired, requirePermission('canApprovePR'), async (req, res) => {
   try {
     if (isMssqlMode()) {
-      return res.status(501).json({ error: 'PR clubbing write to SQL Server is not enabled yet.' });
+      return res
+        .status(201)
+        .json(await processSvc.clubPRs({ prNumbers: req.body?.prNumbers, user: req.user }));
     }
     res.status(201).json(prService.clubPRs({ prNumbers: req.body?.prNumbers, user: req.user }));
   } catch (err) {
@@ -72,15 +87,12 @@ router.post('/club', authRequired, requirePermission('canApprovePR'), (req, res)
   }
 });
 
-router.post('/', authRequired, (req, res) => {
+router.post('/', authRequired, async (req, res) => {
   try {
     if (isMssqlMode()) {
-      return res.status(501).json({
-        error: 'PR create write to SQL Server is not enabled yet. Reads use ERP_Database; writes still use SQLite mode or the C# app.',
-      });
+      return res.status(201).json(await processSvc.createPRs({ ...req.body, user: req.user }));
     }
-    const result = prService.createPRs({ ...req.body, user: req.user });
-    res.status(201).json(result);
+    res.status(201).json(prService.createPRs({ ...req.body, user: req.user }));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -101,10 +113,12 @@ router.get('/:prNumber', authRequired, async (req, res) => {
   }
 });
 
-router.post('/:prNumber/status', authRequired, requirePermission('canApprovePR'), (req, res) => {
+router.post('/:prNumber/status', authRequired, requirePermission('canApprovePR'), async (req, res) => {
   try {
     if (isMssqlMode()) {
-      return res.status(501).json({ error: 'PR status write to SQL Server is not enabled yet.' });
+      return res.json(
+        await processSvc.updatePRStatus(req.params.prNumber, { ...req.body, user: req.user })
+      );
     }
     res.json(prService.updatePRStatus(req.params.prNumber, { ...req.body, user: req.user }));
   } catch (err) {
