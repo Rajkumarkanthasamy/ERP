@@ -12,6 +12,7 @@ import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined
 import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
 import PeopleOutlinedIcon from '@mui/icons-material/PeopleOutlined';
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
+import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined';
 
 export const BISS_LOGO = 'https://www.biss.in/img/logo-036.png';
 
@@ -21,6 +22,12 @@ export const navSections = [
     label: 'Home',
     icon: DashboardOutlinedIcon,
     items: [{ label: 'Dashboard', path: '/' }],
+  },
+  {
+    id: 'appearance',
+    label: 'Appearance',
+    icon: PaletteOutlinedIcon,
+    items: [{ label: 'Theme & Typography', path: '/settings/theme' }],
   },
   {
     id: 'procurement',

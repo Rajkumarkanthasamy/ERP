@@ -3,6 +3,7 @@ import { Link as RouterLink, Outlet, useLocation, useNavigate } from 'react-rout
 import {
   AppBar,
   Avatar,
+  Badge,
   Box,
   Chip,
   Divider,
@@ -15,6 +16,7 @@ import {
   ListItemText,
   Toolbar,
   TextField,
+  Tooltip,
   Typography,
   useMediaQuery,
   Collapse,
@@ -24,14 +26,19 @@ import SearchIcon from '@mui/icons-material/Search';
 import LogoutIcon from '@mui/icons-material/Logout';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import NotificationsNoneOutlinedIcon from '@mui/icons-material/NotificationsNoneOutlined';
+import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import { useTheme } from '@mui/material/styles';
 import { useAuth } from '../auth/AuthContext';
+import { useThemeSettings } from '../theme/ThemeSettingsContext';
 import { BISS_LOGO, flattenNav, navSections } from './navConfig';
 
 const DRAWER_WIDTH = 280;
 
 function NavContent({ onNavigate, filter }) {
   const location = useLocation();
+  const theme = useTheme();
   const [openSections, setOpenSections] = useState(() =>
     Object.fromEntries(navSections.map((s) => [s.id, true]))
   );
@@ -58,6 +65,17 @@ function NavContent({ onNavigate, filter }) {
     }
   }, [filter, filtered]);
 
+  const today = useMemo(
+    () =>
+      new Date().toLocaleDateString(undefined, {
+        weekday: 'short',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }),
+    []
+  );
+
   return (
     <Box className="nav-reveal" sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Box sx={{ px: 2, py: 2.2, display: 'flex', alignItems: 'center', gap: 1.25 }}>
@@ -67,13 +85,14 @@ function NavContent({ onNavigate, filter }) {
           alt="BISS"
           sx={{ height: 40, width: 'auto', objectFit: 'contain' }}
         />
-        <Box>
+        <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontFamily: 'var(--font-serif)', fontWeight: 700, lineHeight: 1.1 }}>
             BISS ERP
           </Typography>
-          <Typography variant="caption" color="text.secondary">
-            ExistERP Suite
+          <Typography variant="caption" color="text.secondary" noWrap>
+            ExistERP Management
           </Typography>
+          <StackDate today={today} />
         </Box>
       </Box>
       <Divider />
@@ -116,8 +135,9 @@ function NavContent({ onNavigate, filter }) {
                         sx={{
                           ml: 1,
                           borderRadius: 2,
+                          position: 'relative',
                           '&.Mui-selected': {
-                            bgcolor: 'rgba(15, 118, 110, 0.12)',
+                            bgcolor: `${theme.palette.primary.main}14`,
                             color: 'primary.dark',
                           },
                         }}
@@ -139,14 +159,36 @@ function NavContent({ onNavigate, filter }) {
   );
 }
 
+function StackDate({ today }) {
+  return (
+    <Typography
+      variant="caption"
+      color="text.secondary"
+      sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.35 }}
+    >
+      <CalendarMonthOutlinedIcon sx={{ fontSize: 13 }} />
+      {today}
+    </Typography>
+  );
+}
+
 export default function AppLayout() {
   const theme = useTheme();
+  const { colors } = useThemeSettings();
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [navFilter, setNavFilter] = useState('');
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const allRoutes = useMemo(() => flattenNav(), []);
+
+  const pageTitle = useMemo(() => {
+    const match = allRoutes.find((r) =>
+      r.path === '/' ? location.pathname === '/' : location.pathname.startsWith(r.path)
+    );
+    return match?.label || 'Dashboard';
+  }, [allRoutes, location.pathname]);
 
   const drawer = (
     <NavContent
@@ -158,7 +200,7 @@ export default function AppLayout() {
   );
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
       <AppBar
         position="fixed"
         color="inherit"
@@ -168,8 +210,8 @@ export default function AppLayout() {
           ml: { md: `${DRAWER_WIDTH}px` },
           borderBottom: '1px solid',
           borderColor: 'divider',
-          bgcolor: 'rgba(255,255,255,0.86)',
-          backdropFilter: 'blur(10px)',
+          bgcolor: 'rgba(255,255,255,0.9)',
+          backdropFilter: 'blur(12px)',
         }}
       >
         <Toolbar sx={{ gap: 1.5 }}>
@@ -180,13 +222,16 @@ export default function AppLayout() {
           )}
           <TextField
             size="small"
-            placeholder="Search menu…"
+            placeholder="Looking for something…"
             value={navFilter}
             onChange={(e) => setNavFilter(e.target.value)}
             sx={{
               flex: 1,
-              maxWidth: 420,
-              '& .MuiOutlinedInput-root': { bgcolor: '#fff' },
+              maxWidth: 480,
+              '& .MuiOutlinedInput-root': {
+                bgcolor: colors.background || '#f4f7fb',
+                borderRadius: 2.5,
+              },
             }}
             InputProps={{
               startAdornment: (
@@ -208,14 +253,41 @@ export default function AppLayout() {
                     label={r.label}
                     onClick={() => navigate(r.path)}
                     variant="outlined"
+                    className="chip-pop"
                   />
                 ))}
             </Box>
           )}
           <Box sx={{ flex: 1 }} />
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ display: { xs: 'none', lg: 'block' }, mr: 0.5 }}
+          >
+            {pageTitle}
+          </Typography>
+          <Tooltip title="Theme & typography">
+            <IconButton color="primary" onClick={() => navigate('/settings/theme')}>
+              <SettingsOutlinedIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Notifications">
+            <IconButton>
+              <Badge color="error" variant="dot" overlap="circular">
+                <NotificationsNoneOutlinedIcon />
+              </Badge>
+            </IconButton>
+          </Tooltip>
           <Chip
             avatar={
-              <Avatar sx={{ bgcolor: 'secondary.main', width: 28, height: 28, fontSize: 12 }}>
+              <Avatar
+                sx={{
+                  bgcolor: 'secondary.main',
+                  width: 28,
+                  height: 28,
+                  fontSize: 12,
+                }}
+              >
                 {(user?.displayName || user?.username || 'U').slice(0, 1).toUpperCase()}
               </Avatar>
             }
@@ -242,7 +314,11 @@ export default function AppLayout() {
             variant="permanent"
             open
             sx={{
-              '& .MuiDrawer-paper': { width: DRAWER_WIDTH, boxSizing: 'border-box' },
+              '& .MuiDrawer-paper': {
+                width: DRAWER_WIDTH,
+                boxSizing: 'border-box',
+                bgcolor: '#ffffff',
+              },
             }}
           >
             {drawer}
@@ -268,11 +344,14 @@ export default function AppLayout() {
 
       <Box
         component="main"
+        className="page-fade"
+        key={location.pathname}
         sx={{
           flexGrow: 1,
           width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
           p: { xs: 2, md: 3 },
           mt: 8,
+          minHeight: '100vh',
         }}
       >
         <Outlet />

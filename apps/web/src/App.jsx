@@ -49,6 +49,7 @@ import DeliveryChallanPage from './pages/DeliveryChallanPage';
 import ComplaintsPage from './pages/ComplaintsPage';
 import { ChangePasswordPage, UsersPage } from './pages/users/UsersPages';
 import ReportsPage from './pages/ReportsPage';
+import ThemeSettingsPage from './pages/ThemeSettingsPage';
 
 function Protected({ children }) {
   const { isAuthenticated, booting } = useAuth();
@@ -128,6 +129,7 @@ export default function App() {
         <Route path="users" element={<UsersPage />} />
         <Route path="users/change-password" element={<ChangePasswordPage />} />
         <Route path="reports" element={<ReportsPage />} />
+        <Route path="settings/theme" element={<ThemeSettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

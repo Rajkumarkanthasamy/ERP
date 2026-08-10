@@ -194,7 +194,7 @@ export default function ResourcePage({
         }
       />
 
-      <Paper sx={{ p: 2, mb: 2 }}>
+      <Paper className="erp-card-enter" sx={{ p: 2, mb: 2 }}>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
           <TextField
             size="small"
@@ -245,7 +245,7 @@ export default function ResourcePage({
           onAction={allowCreate ? openCreate : undefined}
         />
       ) : (
-        <TableContainer component={Paper} className="page-fade">
+        <TableContainer component={Paper} className="erp-card-enter" sx={{ animationDelay: '80ms' }}>
           <Table size="small">
             <TableHead>
               <TableRow>
@@ -262,6 +262,8 @@ export default function ResourcePage({
                 <TableRow
                   key={row[rowKey] ?? idx}
                   hover
+                  className="row-fade"
+                  style={{ animationDelay: `${Math.min(idx, 12) * 25}ms` }}
                   onClick={() => onRowClick?.(row)}
                   sx={{ cursor: onRowClick ? 'pointer' : 'default' }}
                 >
