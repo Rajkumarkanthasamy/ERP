@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { closeDb } from '../src/db/connection.js';
+import { requireSqliteMode } from '../src/middleware/dbMode.js';
 import * as gateEntryService from '../src/services/gateEntryService.js';
 import * as masterService from '../src/services/masterService.js';
 import * as salesService from '../src/services/salesService.js';
@@ -59,4 +60,36 @@ test('quote amount can be edited without replacing line items', () => {
   );
 
   assert.equal(updated.totalAmount, 1750);
+});
+
+test('unmapped routes reject SQL Server mode instead of opening SQLite', () => {
+  process.env.DB_CLIENT = 'mssql';
+  let status;
+  let payload;
+  let continued = false;
+  const response = {
+    status(code) {
+      status = code;
+      return this;
+    },
+    json(body) {
+      payload = body;
+      return this;
+    },
+  };
+
+  try {
+    requireSqliteMode(
+      { baseUrl: '/api/stock', path: '/' },
+      response,
+      () => {
+        continued = true;
+      }
+    );
+  } finally {
+    process.env.DB_CLIENT = 'sqlite';
+  }
+  assert.equal(continued, false);
+  assert.equal(status, 501);
+  assert.equal(payload.code, 'MSSQL_WORKFLOW_NOT_MAPPED');
 });
