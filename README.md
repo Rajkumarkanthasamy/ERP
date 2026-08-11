@@ -4,7 +4,9 @@ Standalone, free recreation of the legacy C# / .NET WinForms ExistERP as a respo
 
 ## What’s included
 
-Covers the full ExistERP menu surface (not only procurement):
+Provides a web migration of the main ExistERP menu areas (not only
+procurement). This is **not yet full behavioral parity** with every WinForms
+screen:
 
 - **Procurement** — Dashboard, Kanban, PR Generation / Approval / Clubbing, PR→PO workspace, PO Approval, PO Status View, GRN, Price Variance, Item Code request/approval, Work Orders (includes advanced flow from `cursor/po-status-view-9db7`)
 - **ERP Masters** — Cities, Customers, Vendors, Items, Assets, Standard Cost, Sales Products
@@ -55,7 +57,14 @@ npm run dev -w apps/api
 
 Login with existing ERP `Login` table users (same as C#).
 
-Full procurement process (PR → Approve → Club → PO → Approve → GRN) writes to the same SQL Server tables as the C# app. Details: [docs/PROCESS.md](docs/PROCESS.md).
+The newer procurement flow (PR → Approve → Club → PO → Approve → GRN) has
+explicit SQL Server adapters. The original WinForms PO/WO, inventory, project,
+sales, reporting, permission, print, document and email features are still being
+migrated.
+
+See [docs/FEATURE_PARITY.md](docs/FEATURE_PARITY.md) for the evidence-based
+screen/workflow comparison and remaining gaps. Procurement process details are
+in [docs/PROCESS.md](docs/PROCESS.md).
 
 ### Demo logins
 
@@ -90,6 +99,9 @@ legacy zips (Code.zip, WinFormsApp1.zip)
 
 ## Notes
 
-- Same business rules as the stabilized procurement flow: ₹12L PR auto-split/clubbing, PO approval tiers by amount+GST (PC ≤50k, OM ≤2.5L, else GM), Kanban, GRN partial receive, price variance Watch/Alert.
+- The newer procurement prototype includes ₹12L PR auto-split/clubbing, PO
+  approval tiers by amount+GST (PC ≤50k, OM ≤2.5L, else GM), Kanban, GRN
+  partial receive and price-variance indicators. It does not replace every
+  original `Code.zip` PO/WO/GIN feature.
 - SQLite keeps the app standalone and zero-cost; schema is modular so a future move to PostgreSQL is straightforward.
 - Logo: https://www.biss.in/img/logo-036.png

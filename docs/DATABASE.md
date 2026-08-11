@@ -51,7 +51,7 @@ DB_CLIENT=mssql
 MSSQL_SERVER=GTKA064W111\\SQLEXPRESS01
 MSSQL_DATABASE=ERP_Database
 MSSQL_USER=sa
-MSSQL_PASSWORD=Bangalore@560058
+MSSQL_PASSWORD=your-password-here
 MSSQL_ENCRYPT=false
 MSSQL_TRUST_SERVER_CERTIFICATE=true
 PORT=4000
@@ -81,10 +81,11 @@ Healthy MSSQL response includes `database: ERP_Database` and `serverName`.
 
 ### 4. Login to the web app
 
-With `DB_CLIENT=mssql`, login uses the legacy **`Login`** table (same as C#):
+With `DB_CLIENT=mssql`, login uses the legacy **`Login`** table and the
+AES-compatible password format from `Code/Cryptography.cs`:
 
 - Username = `Login.UserName`
-- Password = `Login.LoginPassword` (as stored today)
+- Enter the user's normal password; the API encrypts it before comparison
 
 Then open the React app (`npm run dev -w apps/web`) and use those ERP users.
 
