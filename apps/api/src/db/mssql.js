@@ -10,6 +10,10 @@ const CORE_LEGACY_TABLES = [
   'PurchaseOrder',
   'Vendors',
   'ItemMaster',
+  'ProjectMaster',
+  'SecurityInward',
+  'SecurityOutward',
+  'ERPTransactionLog',
 ];
 
 function buildConfig() {

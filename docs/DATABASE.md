@@ -89,9 +89,9 @@ AES-compatible password format from `Code/Cryptography.cs`:
 
 Then open the React app (`npm run dev -w apps/web`) and use those ERP users.
 
-### What works today against SQL Server (full procurement process)
+### What works today against SQL Server
 
-Same process as the C# app — **reads and writes**:
+The mapped web subset currently supports these **reads and writes**:
 
 1. Login (`Login` table — same users/passwords as C#)
 2. Dashboard counts
@@ -102,8 +102,18 @@ Same process as the C# app — **reads and writes**:
 7. **PO Approval** PM → MH → PC → OM/GM (amount + GST tiers)
 8. **Generate / Send PO**
 9. **PO Status View**
-10. **GRN** receive (needs `ProcurementGRN` tables — run `apps/api/sql/Phase3_Schema_Alignment.sql` once in SSMS)
-11. Vendors / Items masters (read)
+10. **Price variance** against latest PO / ItemMaster cost
+11. **GRN** receive into the web `ProcurementGRN` extension (run
+    `apps/api/sql/Phase3_Schema_Alignment.sql` once in SSMS)
+12. **Gate Inward / Outward / Manual Inward** → `SecurityInward` /
+    `SecurityOutward`
+13. Vendors, Items and Projects (read)
+
+The web GRN extension updates PO remaining quantity, but it does not yet perform
+all legacy GIN inventory postings to `Receipt`, `ERPInventoryLogs` and
+`ItemMaster`. Do not treat it as a replacement for the stores GIN workflow until
+that transactional bridge is completed. Other unmapped live routes return
+`501 MSSQL_WORKFLOW_NOT_MAPPED` rather than falling back to SQLite.
 
 See **[PROCESS.md](PROCESS.md)** for the full flow diagram.
 

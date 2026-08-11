@@ -22,10 +22,11 @@ The web application currently contains 50 routes and 17 API route groups. Severa
 routes combine multiple legacy screens, but most modules outside procurement are
 simplified SQLite demo CRUD screens.
 
-In SQL Server mode, only authentication, dashboard, PR, PO, GRN, project reads,
-and parts of the vendor/item master currently have explicit MSSQL code paths.
-Other route groups now return `501 MSSQL_WORKFLOW_NOT_MAPPED`; they cannot
-silently read or write the SQLite demo database while live ERP mode is selected.
+In SQL Server mode, only authentication, dashboard, PR, PO, GRN, gate
+inward/outward, project reads, and parts of the vendor/item master currently
+have explicit MSSQL code paths. Other route groups now return
+`501 MSSQL_WORKFLOW_NOT_MAPPED`; they cannot silently read or write the SQLite
+demo database while live ERP mode is selected.
 
 ### Status labels
 
@@ -61,7 +62,7 @@ silently read or write the SQLite demo database while live ERP mode is selected.
 | Item issue/return | Project/job issue, return, stock validation and FIFO logs | Demo | Live atomic inventory transactions and project/job rules |
 | Inventory | Ledgers, cycle count, location update/history, stock adjustment and grading; the legacy dashboard entry is a dead stub | Demo | Live inventory calculations, audit logs, cycle count and location workflows |
 | Delivery challan/DC | DC generation and related project/receipt data | Demo | Legacy document numbering, line rules, printing/export and SQL mapping |
-| Gate entry | Inward, outward, manual inward and report | Demo | `SecurityInward`/`SecurityOutward` mappings, complete fields and report |
+| Gate entry | Inward, outward, manual inward and report | Partial | Live multi-line `SecurityInward`/`SecurityOutward` reads and transactional writes are mapped; external BMS/DC lookup, historical manual-entry identification and report export remain |
 | Project create/approve | Full project/customer/product/order metadata and approvals | Partial | Live `ProjectMaster` list/detail reads support procurement; writes, role approvals and the full field set remain |
 | Project update | Warranty, short shipment, status, installation, shipment date and invoice updates | Partial | Only simplified project editing/installation view exists |
 | Project BOM | Create/import, versions, lock/unlock, change logs, approval and progress | Demo | `ProjectBOM`, `MachineBOM`, lock/log tables and full workflows |
@@ -156,6 +157,10 @@ implement the legacy report queries or export/print behavior.
 13. Price variance now uses the same 5% watch and 10% alert thresholds in both
     modes. The SQL Server adapter compares each PR line with its latest
     `PurchaseOrder` unit price and falls back to `ItemMaster` unit/fixed cost.
+14. Gate inward/outward now maps multi-line entries to `SecurityInward` and
+    `SecurityOutward`, preserves SI/SO numbering and logistics fields, and
+    writes `ERPTransactionLog` in the same transaction. These gate records do
+    not mutate inventory balances, matching the legacy workflow.
 
 ## Definition of full parity
 

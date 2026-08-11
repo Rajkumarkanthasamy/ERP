@@ -602,7 +602,14 @@ export function applySchema(db) {
       customer_code TEXT,
       customer_name TEXT,
       purpose TEXT,
+      document_type TEXT,
+      document_no TEXT,
       invoice_no TEXT,
+      invoice_date TEXT,
+      eway_bill_no TEXT,
+      eway_bill_date TEXT,
+      lr_pod_no TEXT,
+      lr_pod_date TEXT,
       status TEXT DEFAULT 'Open',
       in_time TEXT DEFAULT (datetime('now')),
       out_time TEXT,
@@ -611,6 +618,16 @@ export function applySchema(db) {
       created_at TEXT DEFAULT (datetime('now')),
       modified_by TEXT,
       modified_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS gate_entry_details (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      gate_entry_id INTEGER NOT NULL,
+      entry_number TEXT NOT NULL,
+      item_code TEXT,
+      item_description TEXT NOT NULL,
+      quantity REAL NOT NULL DEFAULT 0,
+      FOREIGN KEY (gate_entry_id) REFERENCES gate_entries(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS delivery_challans (
@@ -656,6 +673,7 @@ export function applySchema(db) {
     CREATE INDEX IF NOT EXISTS ix_nc_status ON quality_ncs(status);
     CREATE INDEX IF NOT EXISTS ix_complaint_status ON complaints(status);
     CREATE INDEX IF NOT EXISTS ix_gate_status ON gate_entries(status);
+    CREATE INDEX IF NOT EXISTS ix_gate_details_entry ON gate_entry_details(entry_number);
   `);
 
   // Expand existing master tables (idempotent column adds)
@@ -680,4 +698,11 @@ export function applySchema(db) {
   ensureColumn(db, 'projects', 'shipment_date', 'TEXT');
   ensureColumn(db, 'projects', 'remarks', 'TEXT');
   ensureColumn(db, 'procurement_grn', 'invoice_no', 'TEXT');
+  ensureColumn(db, 'gate_entries', 'document_type', 'TEXT');
+  ensureColumn(db, 'gate_entries', 'document_no', 'TEXT');
+  ensureColumn(db, 'gate_entries', 'invoice_date', 'TEXT');
+  ensureColumn(db, 'gate_entries', 'eway_bill_no', 'TEXT');
+  ensureColumn(db, 'gate_entries', 'eway_bill_date', 'TEXT');
+  ensureColumn(db, 'gate_entries', 'lr_pod_no', 'TEXT');
+  ensureColumn(db, 'gate_entries', 'lr_pod_date', 'TEXT');
 }
