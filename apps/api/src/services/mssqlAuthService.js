@@ -89,6 +89,31 @@ function mapPermissions(row) {
   );
 }
 
+function parseNameList(envValue) {
+  return String(envValue || '')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function resolveIsPc(row) {
+  const configured = parseNameList(process.env.PO_PC_APPROVERS);
+  if (configured.length) {
+    return configured.includes(String(row.UserName || '').toLowerCase());
+  }
+  // Login has no PurchaseCommittee bit. Do not treat PurchaseManager as PC —
+  // that lets PM users take both PM and PC steps. Prefer GM/Finance as committee-capable.
+  return Boolean(row.GeneralManager || row.FinanceManager);
+}
+
+function resolveCanCancelClose(row) {
+  const configured = parseNameList(process.env.PO_CANCEL_CLOSE_USERS);
+  if (configured.length) {
+    return configured.includes(String(row.UserName || '').toLowerCase());
+  }
+  return Boolean(row.GeneralManager || row.OperationManager || row.FinanceManager);
+}
+
 function deriveRole(row) {
   if (row.GeneralManager) return 'General Manager';
   if (row.OperationManager) return 'Operations Manager';
@@ -136,6 +161,8 @@ export async function authenticateLegacyUser(username, password) {
       row.PurchaseManager ||
       row.FinanceManager
   );
+  const isPc = resolveIsPc(row);
+  const canCancelClosePO = resolveCanCancelClose(row);
   const passwordExpiryDays =
     row.PasswordExpiryDays == null ? null : Number(row.PasswordExpiryDays);
 
@@ -172,15 +199,17 @@ export async function authenticateLegacyUser(username, password) {
       is_mh: row.ManufacturingHead ? 1 : 0,
       is_gm: row.GeneralManager ? 1 : 0,
       is_om: row.OperationManager ? 1 : 0,
-      is_pc: row.PurchaseManager ? 1 : 0,
+      is_pc: isPc ? 1 : 0,
+      can_cancel_close_po: canCancelClosePO ? 1 : 0,
       canApprovePR,
       canGeneratePO,
       canApprovePO,
+      canCancelClosePO,
       isPm: Boolean(row.PurchaseManager),
       isMh: Boolean(row.ManufacturingHead),
       isGm: Boolean(row.GeneralManager),
       isOm: Boolean(row.OperationManager),
-      isPc: Boolean(row.PurchaseManager),
+      isPc,
     },
   };
 }

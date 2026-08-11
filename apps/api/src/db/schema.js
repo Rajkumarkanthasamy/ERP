@@ -698,6 +698,9 @@ export function applySchema(db) {
   ensureColumn(db, 'projects', 'shipment_date', 'TEXT');
   ensureColumn(db, 'projects', 'remarks', 'TEXT');
   ensureColumn(db, 'procurement_grn', 'invoice_no', 'TEXT');
+  ensureColumn(db, 'purchase_orders', 'final_comment', 'TEXT');
+  ensureColumn(db, 'purchase_orders', 'final_remarks', 'TEXT');
+  ensureColumn(db, 'purchase_orders', 'oa_date', 'TEXT');
   ensureColumn(db, 'gate_entries', 'document_type', 'TEXT');
   ensureColumn(db, 'gate_entries', 'document_no', 'TEXT');
   ensureColumn(db, 'gate_entries', 'invoice_date', 'TEXT');

@@ -106,6 +106,7 @@ test('PR to PO to GRN contracts preserve vendor, approval step, and receipt fiel
 
 test('GRN rejects receipt quantities above the remaining PO balance', () => {
   const openLine = grnService.listOpenPOLines()[0];
+  assert.ok(openLine);
   assert.throws(
     () =>
       grnService.createGRN({
@@ -114,5 +115,63 @@ test('GRN rejects receipt quantities above the remaining PO balance', () => {
         user,
       }),
     /exceeds remaining/
+  );
+});
+
+test('PO cancel requires a final comment and blocks GRN open lines', () => {
+  const openBefore = grnService.listOpenPOLines();
+  assert.ok(openBefore.length > 0);
+  const poRef = openBefore[0].poRef;
+
+  assert.throws(
+    () => poService.cancelPO(poRef, { finalComment: '', user }),
+    /Final comment/
+  );
+
+  const cancelled = poService.cancelPO(poRef, {
+    finalComment: 'Duplicate order',
+    user: { ...user, username: 'gm' },
+  });
+  assert.equal(cancelled.status, 'Cancelled');
+  assert.equal(cancelled.cancelledBy, 'System Admin');
+  assert.equal(
+    grnService.listOpenPOLines().some((line) => line.poRef === poRef),
+    false
+  );
+});
+
+test('PO close and unauthorized send permission helpers', async () => {
+  const { userCanCancelClosePO, userCanSendPO } = await import('../src/middleware/auth.js');
+  assert.equal(userCanSendPO({ canGeneratePO: true, permissions: {} }), true);
+  assert.equal(
+    userCanSendPO({ canGeneratePO: true, permissions: { purchaseOrder: true } }),
+    false
+  );
+  assert.equal(
+    userCanSendPO({ canGeneratePO: true, permissions: { poTrack: true } }),
+    true
+  );
+  assert.equal(userCanCancelClosePO({ isGm: true }), true);
+  assert.equal(userCanCancelClosePO({ isPm: true, permissions: {} }), false);
+
+  // Convert a fresh small PO and close it.
+  const created = prService.createPRs({
+    projectCode: 'P-TEST',
+    vendorCode: 'V-TEST',
+    vendorName: 'Test Vendor',
+    lines: [{ itemCode: 'I-TEST', quantity: 1, uom: 'NOS', unitCost: 50 }],
+    user,
+  });
+  const prNumber = created.created[0].prNumber;
+  prService.updatePRStatus(prNumber, { action: 'approve', user });
+  const poRef = poService.convertPRsToPO({ prNumbers: [prNumber], user }).poRefs[0];
+  poService.approvePO(poRef, { step: 'pm', user });
+  poService.approvePO(poRef, { step: 'mh', user });
+  poService.approvePO(poRef, { step: 'pc', user });
+  const closed = poService.closePO(poRef, { finalComment: 'Project cancelled', user });
+  assert.equal(closed.status, 'Closed');
+  assert.throws(
+    () => poService.cancelPO(poRef, { finalComment: 'too late', user }),
+    /cannot be cancelled/i
   );
 });

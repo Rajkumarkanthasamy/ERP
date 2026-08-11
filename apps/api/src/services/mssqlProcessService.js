@@ -822,8 +822,93 @@ export async function listOpenPOLines() {
       Amount AS amount
     FROM PurchaseOrder
     WHERE POApproved = 1
+      AND NULLIF(POGeneratedBy, '') IS NOT NULL
+      AND NULLIF(POSenttoVendorBy, '') IS NOT NULL
+      AND NULLIF(CancelledBy, '') IS NULL
+      AND NULLIF(ClosedBy, '') IS NULL
+      AND ISNULL(FinalStatus, '') NOT IN ('Rejected', 'Cancelled', 'Closed')
       AND ISNULL(RemainingQty, RequariedQty) > 0
     ORDER BY ID DESC
   `);
   return result.recordset;
+}
+
+export async function cancelPO(poRef, { finalComment, user }) {
+  const comment = String(finalComment || '').trim();
+  if (!comment) throw new Error('Final comment is required to cancel a PO');
+  const name = user.displayName || user.username;
+  const existing = await mssqlQuery(
+    `SELECT TOP 1 CancelledBy, ClosedBy, FinalStatus FROM PurchaseOrder WHERE DBOMNo = @PORef`,
+    { PORef: poRef }
+  );
+  const row = existing.recordset[0];
+  if (!row) throw new Error('PO not found');
+  if (row.CancelledBy) throw new Error('PO is already cancelled');
+  if (row.ClosedBy) throw new Error('Closed POs cannot be cancelled');
+  await updatePoByRef(
+    poRef,
+    `CancelledBy = @ByUser,
+     CancelledDate = CONVERT(NVARCHAR(64), GETDATE(), 120),
+     FinalComment = @Comment,
+     FinalStatus = 'Cancelled',
+     AuthoriedBy = 'Deleted',
+     POGeneratedBy = CASE WHEN NULLIF(POGeneratedBy, '') IS NULL THEN POGeneratedBy ELSE 'Deleted' END`,
+    { ByUser: name, Comment: comment }
+  );
+  const { listPurchaseOrders } = await import('./mssqlLegacyService.js');
+  const data = await listPurchaseOrders({ poNumber: poRef });
+  return data.items.find((p) => p.poRef === poRef) || data.items[0];
+}
+
+export async function closePO(poRef, { finalComment, user }) {
+  const comment = String(finalComment || '').trim();
+  if (!comment) throw new Error('Final comment is required to close a PO');
+  const name = user.displayName || user.username;
+  const existing = await mssqlQuery(
+    `SELECT TOP 1 CancelledBy, ClosedBy FROM PurchaseOrder WHERE DBOMNo = @PORef`,
+    { PORef: poRef }
+  );
+  const row = existing.recordset[0];
+  if (!row) throw new Error('PO not found');
+  if (row.CancelledBy) throw new Error('Cancelled POs cannot be closed');
+  if (row.ClosedBy) throw new Error('PO is already closed');
+  // Intentionally omit the legacy trailing-comma bug in ClosePurchaseOrder.
+  await updatePoByRef(
+    poRef,
+    `ClosedBy = @ByUser,
+     ClosedDate = CONVERT(NVARCHAR(64), GETDATE(), 120),
+     FinalComment = @Comment,
+     FinalStatus = 'Closed'`,
+    { ByUser: name, Comment: comment }
+  );
+  const { listPurchaseOrders } = await import('./mssqlLegacyService.js');
+  const data = await listPurchaseOrders({ poNumber: poRef });
+  return data.items.find((p) => p.poRef === poRef) || data.items[0];
+}
+
+export async function updatePOTrack(poRef, { finalRemarks, oaDate, user }) {
+  const existing = await mssqlQuery(
+    `SELECT TOP 1 CancelledBy, ClosedBy FROM PurchaseOrder WHERE DBOMNo = @PORef`,
+    { PORef: poRef }
+  );
+  const row = existing.recordset[0];
+  if (!row) throw new Error('PO not found');
+  if (row.CancelledBy || row.ClosedBy) {
+    throw new Error('Cannot update tracking on a cancelled or closed PO');
+  }
+  const sets = [];
+  const params = {};
+  if (finalRemarks != null) {
+    sets.push('FinalRemarks = @FinalRemarks');
+    params.FinalRemarks = finalRemarks;
+  }
+  if (oaDate != null) {
+    sets.push('OADate = @OADate');
+    params.OADate = oaDate;
+  }
+  if (!sets.length) throw new Error('Provide finalRemarks and/or oaDate');
+  await updatePoByRef(poRef, sets.join(', '), params);
+  const { listPurchaseOrders } = await import('./mssqlLegacyService.js');
+  const data = await listPurchaseOrders({ poNumber: poRef });
+  return data.items.find((p) => p.poRef === poRef) || data.items[0];
 }

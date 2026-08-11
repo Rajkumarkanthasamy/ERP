@@ -41,6 +41,7 @@ router.post('/login', async (req, res) => {
           canApprovePR: result.user.canApprovePR,
           canGeneratePO: result.user.canGeneratePO,
           canApprovePO: result.user.canApprovePO,
+          canCancelClosePO: result.user.canCancelClosePO,
           isPm: result.user.isPm,
           isMh: result.user.isMh,
           isGm: result.user.isGm,
@@ -56,7 +57,10 @@ router.post('/login', async (req, res) => {
     if (!user || !bcrypt.compareSync(password, user.password_hash)) {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
-    const token = signToken(user);
+    const token = signToken({
+      ...user,
+      can_cancel_close_po: user.is_gm || user.is_om || user.is_pc ? 1 : 0,
+    });
     res.json({
       token,
       user: {
@@ -68,6 +72,7 @@ router.post('/login', async (req, res) => {
         canApprovePR: !!user.can_approve_pr,
         canGeneratePO: !!user.can_generate_po,
         canApprovePO: !!user.can_approve_po,
+        canCancelClosePO: !!(user.is_gm || user.is_om || user.is_pc),
         isPm: !!user.is_pm,
         isMh: !!user.is_mh,
         isGm: !!user.is_gm,

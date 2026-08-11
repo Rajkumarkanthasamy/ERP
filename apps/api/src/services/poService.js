@@ -40,6 +40,11 @@ function groupByPoRef(rows) {
       poApproved: !!lines[0].po_approved,
       poGeneratedBy: lines[0].po_generated_by,
       poGeneratedDate: lines[0].po_generated_date,
+      finalComment: lines[0].final_comment,
+      finalRemarks: lines[0].final_remarks,
+      oaDate: lines[0].oa_date,
+      cancelledBy: lines[0].cancelled_by,
+      closedBy: lines[0].closed_by,
       ...approval,
       nextStep: getNextPoApprovalStep({
         ...approval,
@@ -107,6 +112,9 @@ function mapLine(row) {
     rejectReason: row.reject_reason,
     cancelledBy: row.cancelled_by,
     closedBy: row.closed_by,
+    finalComment: row.final_comment,
+    finalRemarks: row.final_remarks,
+    oaDate: row.oa_date,
     remarks: row.remarks,
   };
 }
@@ -428,6 +436,89 @@ export function getPO(poRef) {
   const rows = db.prepare('SELECT * FROM purchase_orders WHERE po_ref = ? ORDER BY id').all(poRef);
   if (!rows.length) return null;
   return groupByPoRef(rows)[0];
+}
+
+export function cancelPO(poRef, { finalComment, user }) {
+  const comment = String(finalComment || '').trim();
+  if (!comment) throw new Error('Final comment is required to cancel a PO');
+  const db = getDb();
+  const lines = db.prepare('SELECT * FROM purchase_orders WHERE po_ref = ?').all(poRef);
+  if (!lines.length) throw new Error('PO not found');
+  const first = lines[0];
+  if (first.cancelled_by) throw new Error('PO is already cancelled');
+  if (first.closed_by) throw new Error('Closed POs cannot be cancelled');
+  const name = user.displayName || user.username;
+  db.prepare(
+    `UPDATE purchase_orders SET
+      cancelled_by = ?,
+      cancelled_date = datetime('now'),
+      final_comment = ?,
+      final_status = 'Cancelled',
+      modified_at = datetime('now')
+     WHERE po_ref = ?`
+  ).run(name, comment, poRef);
+  logActivity({
+    entityType: 'PO',
+    entityRef: poRef,
+    action: 'Cancelled',
+    details: comment,
+    byUser: user.username,
+  });
+  return getPO(poRef);
+}
+
+export function closePO(poRef, { finalComment, user }) {
+  const comment = String(finalComment || '').trim();
+  if (!comment) throw new Error('Final comment is required to close a PO');
+  const db = getDb();
+  const lines = db.prepare('SELECT * FROM purchase_orders WHERE po_ref = ?').all(poRef);
+  if (!lines.length) throw new Error('PO not found');
+  const first = lines[0];
+  if (first.cancelled_by) throw new Error('Cancelled POs cannot be closed');
+  if (first.closed_by) throw new Error('PO is already closed');
+  const name = user.displayName || user.username;
+  db.prepare(
+    `UPDATE purchase_orders SET
+      closed_by = ?,
+      closed_date = datetime('now'),
+      final_comment = ?,
+      final_status = 'Closed',
+      modified_at = datetime('now')
+     WHERE po_ref = ?`
+  ).run(name, comment, poRef);
+  logActivity({
+    entityType: 'PO',
+    entityRef: poRef,
+    action: 'Closed',
+    details: comment,
+    byUser: user.username,
+  });
+  return getPO(poRef);
+}
+
+export function updatePOTrack(poRef, { finalRemarks, oaDate, user }) {
+  const db = getDb();
+  const lines = db.prepare('SELECT * FROM purchase_orders WHERE po_ref = ?').all(poRef);
+  if (!lines.length) throw new Error('PO not found');
+  const first = lines[0];
+  if (first.cancelled_by || first.closed_by) {
+    throw new Error('Cannot update tracking on a cancelled or closed PO');
+  }
+  db.prepare(
+    `UPDATE purchase_orders SET
+      final_remarks = COALESCE(?, final_remarks),
+      oa_date = COALESCE(?, oa_date),
+      modified_at = datetime('now')
+     WHERE po_ref = ?`
+  ).run(finalRemarks ?? null, oaDate ?? null, poRef);
+  logActivity({
+    entityType: 'PO',
+    entityRef: poRef,
+    action: 'TrackUpdated',
+    details: finalRemarks || oaDate || 'track',
+    byUser: user.username,
+  });
+  return getPO(poRef);
 }
 
 export function listPOStatus({ status, poNumber, vendor, project, q, from, to } = {}) {

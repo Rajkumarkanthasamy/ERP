@@ -3,6 +3,8 @@ import {
   authRequired,
   requireAnyLegacyPermission,
   requirePermission,
+  userCanCancelClosePO,
+  userCanSendPO,
 } from '../middleware/auth.js';
 import { isMssqlMode } from '../db/mssql.js';
 import * as poService from '../services/poService.js';
@@ -117,7 +119,13 @@ router.post('/:poRef/approve', authRequired, async (req, res) => {
         error: 'Approval step is required (pm, mh, pc, om, gm, generate, send, or reject)',
       });
     }
-    if (['generate', 'send'].includes(step)) {
+    if (step === 'send') {
+      if (!userCanSendPO(req.user)) {
+        return res.status(403).json({
+          error: 'PO Track permission is required to send a PO to the vendor',
+        });
+      }
+    } else if (step === 'generate') {
       if (!req.user?.canGeneratePO) {
         return res.status(403).json({ error: 'Missing permission: canGeneratePO' });
       }
@@ -137,6 +145,49 @@ router.post('/:poRef/approve', authRequired, async (req, res) => {
       return res.json(await processSvc.approvePO(req.params.poRef, payload));
     }
     return res.json(poService.approvePO(req.params.poRef, payload));
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/:poRef/cancel', authRequired, async (req, res) => {
+  try {
+    if (!userCanCancelClosePO(req.user)) {
+      return res.status(403).json({ error: 'You are not allowed to cancel purchase orders' });
+    }
+    const payload = { finalComment: req.body?.finalComment || req.body?.remarks, user: req.user };
+    if (isMssqlMode()) return res.json(await processSvc.cancelPO(req.params.poRef, payload));
+    return res.json(poService.cancelPO(req.params.poRef, payload));
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/:poRef/close', authRequired, async (req, res) => {
+  try {
+    if (!userCanCancelClosePO(req.user)) {
+      return res.status(403).json({ error: 'You are not allowed to close purchase orders' });
+    }
+    const payload = { finalComment: req.body?.finalComment || req.body?.remarks, user: req.user };
+    if (isMssqlMode()) return res.json(await processSvc.closePO(req.params.poRef, payload));
+    return res.json(poService.closePO(req.params.poRef, payload));
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+router.patch('/:poRef/track', authRequired, async (req, res) => {
+  try {
+    if (!userCanSendPO(req.user) && !req.user?.permissions?.purchaseOrder) {
+      return res.status(403).json({ error: 'PO Track permission is required' });
+    }
+    const payload = {
+      finalRemarks: req.body?.finalRemarks,
+      oaDate: req.body?.oaDate,
+      user: req.user,
+    };
+    if (isMssqlMode()) return res.json(await processSvc.updatePOTrack(req.params.poRef, payload));
+    return res.json(poService.updatePOTrack(req.params.poRef, payload));
   } catch (err) {
     return res.status(400).json({ error: err.message });
   }

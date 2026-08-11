@@ -11,6 +11,11 @@ export function listOpenPOLines() {
               unit_price AS unitPrice, amount, po_generated_by AS poGeneratedBy, po_generated_date AS poGeneratedDate
        FROM purchase_orders
        WHERE po_approved = 1
+         AND po_generated_by IS NOT NULL
+         AND po_sent_to_vendor_by IS NOT NULL
+         AND cancelled_by IS NULL
+         AND closed_by IS NULL
+         AND IFNULL(final_status, '') <> 'Rejected'
          AND IFNULL(remaining_qty, required_qty) > 0
        ORDER BY id DESC`
     )

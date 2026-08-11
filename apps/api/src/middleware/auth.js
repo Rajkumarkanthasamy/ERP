@@ -1,6 +1,34 @@
 import jwt from 'jsonwebtoken';
+import { isMssqlMode } from '../db/mssql.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'biss-erp-dev-secret';
+
+function parseNameList(envValue) {
+  return String(envValue || '')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function userCanCancelClosePO(user) {
+  if (!user) return false;
+  if (user.canCancelClosePO) return true;
+  const configured = parseNameList(process.env.PO_CANCEL_CLOSE_USERS);
+  if (configured.length) {
+    return configured.includes(String(user.username || '').toLowerCase());
+  }
+  return Boolean(user.isGm || user.isOm || user.permissions?.financeManager || user.permissions?.generalManager);
+}
+
+export function userCanSendPO(user) {
+  if (!user) return false;
+  const permissions = user.permissions;
+  if (permissions && Object.keys(permissions).length > 0) {
+    return Boolean(permissions.poTrack || permissions.poWoGenerate);
+  }
+  // SQLite demo tokens omit the legacy permission map.
+  return Boolean(user.canGeneratePO);
+}
 
 export function signToken(user) {
   return jwt.sign(
@@ -18,6 +46,7 @@ export function signToken(user) {
       canApprovePR: !!user.can_approve_pr,
       canGeneratePO: !!user.can_generate_po,
       canApprovePO: !!user.can_approve_po,
+      canCancelClosePO: !!user.can_cancel_close_po || !!user.canCancelClosePO,
       isPm: !!user.is_pm,
       isMh: !!user.is_mh,
       isGm: !!user.is_gm,
@@ -55,8 +84,17 @@ export function requirePermission(flag) {
 export function requireAnyLegacyPermission(...flags) {
   return (req, res, next) => {
     const permissions = req.user?.permissions;
-    // SQLite demo tokens do not carry the legacy permission map.
-    if (!permissions || Object.keys(permissions).length === 0) return next();
+    const hasMap = permissions && Object.keys(permissions).length > 0;
+    // Empty permission maps are only allowed in SQLite demo mode.
+    if (!hasMap) {
+      if (isMssqlMode()) {
+        return res.status(403).json({
+          error: 'Legacy module permissions are required in SQL Server mode',
+          requiredAny: flags,
+        });
+      }
+      return next();
+    }
     if (flags.some((flag) => permissions[flag])) return next();
     return res.status(403).json({
       error: 'You do not have access to this ExistERP module',
