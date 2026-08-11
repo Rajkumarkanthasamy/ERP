@@ -22,10 +22,10 @@ The web application currently contains 50 routes and 17 API route groups. Severa
 routes combine multiple legacy screens, but most modules outside procurement are
 simplified SQLite demo CRUD screens.
 
-In SQL Server mode, only authentication, dashboard, PR, PO, GRN, and parts of the
-vendor/item master currently have explicit MSSQL code paths. Other route groups
-now return `501 MSSQL_WORKFLOW_NOT_MAPPED`; they cannot silently read or write
-the SQLite demo database while live ERP mode is selected.
+In SQL Server mode, only authentication, dashboard, PR, PO, GRN, project reads,
+and parts of the vendor/item master currently have explicit MSSQL code paths.
+Other route groups now return `501 MSSQL_WORKFLOW_NOT_MAPPED`; they cannot
+silently read or write the SQLite demo database while live ERP mode is selected.
 
 ### Status labels
 
@@ -51,17 +51,17 @@ the SQLite demo database while live ERP mode is selected.
 | Standard/target cost | Cost update with audit histories and restricted access | Demo | MSSQL updates to `ItemMaster`, `ItemStdCostHistory`, `ItemTargetCostHistory` |
 | Product master/BOM | Product tree and BOM maintenance | Demo | Live product/BOM tree, versioning and approvals |
 | Fixed assets | Asset register, cost centre, barcode/verification and documents | Demo | Full `AssetMaster`, `AssetCostCentre`, `AssetDocumentInfo`, upload/verification |
-| Procurement PR | PR creation, approval/reject/hold/release, clubbing and PR-to-PO prototype | Partial | SQL query/schema alignment, exact role rules, BOM-origin traceability and complete validation |
-| Purchase order | PO/WO creation, pricing/tax/terms, approval chain, finalization, update request, cancel/close, repeat order, vendor confirmation, tracking, reminders | Partial | Web covers a reduced PR-to-PO/approval/status path; most original PO screens and actions are missing |
+| Procurement PR | PR creation, approval/reject/hold/release, clubbing and PR-to-PO prototype | Partial | Core web request/action contracts are corrected; live SQL validation, exact role rules, BOM-origin traceability and complete validation remain |
+| Purchase order | PO/WO creation, pricing/tax/terms, approval chain, finalization, update request, cancel/close, repeat order, vendor confirmation, tracking, reminders | Partial | Web handles role-specific approval, generate/send and status/receipt transitions; terms, update/cancel/close, repeat-order, output and reminder workflows remain |
 | Work order | Job-work order generation, approval, costs, issue/return and tracking | Demo | Live `WorkOrder`, `WOOtherCost`, `WOApproveList`, job issue/movement |
 | Currency/terms | Currency rate, GST/tax, payment, delivery, packing/forwarding and general terms | Missing | All related master screens and PO integration |
-| GIN/receipt | PO/WO receipt, other-item GIN, inspection request, document scanning, tax, service GIN | Demo | Live `Receipt`, `GINOtherItemReceipt`, inspection and attachment/scanning workflow |
+| GIN/receipt | PO/WO receipt, other-item GIN, inspection request, document scanning, tax, service GIN | Partial | A validated `ProcurementGRN` SQL extension exists; legacy `Receipt`/`GINOtherItemReceipt`, inspection and attachment/scanning workflows remain |
 | Reverse GIN | Reverse receipt and inventory effects | Missing | `RiverseGIN`/`ERPReverseInventoryLogs` transaction |
 | Item issue/return | Project/job issue, return, stock validation and FIFO logs | Demo | Live atomic inventory transactions and project/job rules |
 | Inventory | Ledgers, cycle count, location update/history, stock adjustment, grading and dashboard | Demo | Live inventory calculations, audit logs, cycle count and location workflows |
 | Delivery challan/DC | DC generation and related project/receipt data | Demo | Legacy document numbering, line rules, printing/export and SQL mapping |
 | Gate entry | Inward, outward, manual inward and report | Demo | `SecurityInward`/`SecurityOutward` mappings, complete fields and report |
-| Project create/approve | Full project/customer/product/order metadata and approvals | Demo | `ProjectMaster` mapping, role approvals and full fields |
+| Project create/approve | Full project/customer/product/order metadata and approvals | Partial | Live `ProjectMaster` list/detail reads support procurement; writes, role approvals and the full field set remain |
 | Project update | Warranty, short shipment, status, installation, shipment date and invoice updates | Partial | Only simplified project editing/installation view exists |
 | Project BOM | Create/import, versions, lock/unlock, change logs, approval and progress | Demo | `ProjectBOM`, `MachineBOM`, lock/log tables and full workflows |
 | Project transfer | Transfer request, approval and inventory/project transfer | Missing | `ProjectTransferInfo` and stock transfer transaction |
@@ -141,6 +141,17 @@ implement the legacy report queries or export/print behavior.
    status transitions, but single-line document entry remains below WinForms
    parity for indents, work orders, quotes, stock documents and delivery
    challans.
+10. PR generation now propagates the selected header vendor to every line,
+    returns all auto-split PR numbers, and sends the exact approve/hold/release/
+    reject actions expected by both database adapters.
+11. PO approval now exposes and enforces the next PM, MH, PC, OM or GM step,
+    keeps role checks at the API boundary, and permits the post-approval
+    generate/send lifecycle. PO status responses and search use the same
+    contract in SQLite and SQL Server modes.
+12. GRN entry now sends canonical PO-line and received-quantity fields, groups
+    selected lines by PO, rejects over-receipt, and persists invoice numbers.
+    The complete PR → PO → role approvals → generate → send → GRN flow is
+    covered by API regression tests and a browser test in SQLite mode.
 
 ## Definition of full parity
 
