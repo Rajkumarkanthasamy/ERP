@@ -48,17 +48,18 @@ silently read or write the SQLite demo database while live ERP mode is selected.
 | Customer master | Full address/tax/contact fields and approval | Demo | MSSQL `CustomerMaster`, approval and complete field set |
 | Vendor master | Full address, tax, banking, MSME, currency, approval and search | Partial | Live basic read is schema-aligned; create/update/approve, banking and `VendorDetails` remain |
 | Item master | Item create/update, stock fields, UOM, storage, drawing, HSN/SAC, costs and history | Partial | Live basic read is schema-aligned; writes, full fields, cost history and item approval remain |
+| Item-code request/approval | Propose item code, hold/reject/approve, then create the approved `ItemMaster` row | Demo | SQLite workflow exists; live `ItemCodeCreation` mapping and the legacy creator/approval-authority rules remain |
 | Standard/target cost | Cost update with audit histories and restricted access | Demo | MSSQL updates to `ItemMaster`, `ItemStdCostHistory`, `ItemTargetCostHistory` |
 | Product master/BOM | Product tree and BOM maintenance | Demo | Live product/BOM tree, versioning and approvals |
 | Fixed assets | Asset register, cost centre, barcode/verification and documents | Demo | Full `AssetMaster`, `AssetCostCentre`, `AssetDocumentInfo`, upload/verification |
 | Procurement PR | PR creation, approval/reject/hold/release, clubbing and PR-to-PO prototype | Partial | Core web request/action contracts are corrected; live SQL validation, exact role rules, BOM-origin traceability and complete validation remain |
-| Purchase order | PO/WO creation, pricing/tax/terms, approval chain, finalization, update request, cancel/close, repeat order, vendor confirmation, tracking, reminders | Partial | Web handles role-specific approval, generate/send and status/receipt transitions; terms, update/cancel/close, repeat-order, output and reminder workflows remain |
+| Purchase order | PO/WO creation, pricing/tax/terms, approval chain, finalization, update request, cancel/close, repeat order, vendor confirmation, tracking, reminders | Partial | Web handles role-specific approval, generate/send and status/receipt transitions; the classic `POStatus` menu form is only a stub, but implemented tracking subforms and the remaining PO actions still need migration |
 | Work order | Job-work order generation, approval, costs, issue/return and tracking | Demo | Live `WorkOrder`, `WOOtherCost`, `WOApproveList`, job issue/movement |
 | Currency/terms | Currency rate, GST/tax, payment, delivery, packing/forwarding and general terms | Missing | All related master screens and PO integration |
 | GIN/receipt | PO/WO receipt, other-item GIN, inspection request, document scanning, tax, service GIN | Partial | A validated `ProcurementGRN` SQL extension exists; legacy `Receipt`/`GINOtherItemReceipt`, inspection and attachment/scanning workflows remain |
 | Reverse GIN | Reverse receipt and inventory effects | Missing | `RiverseGIN`/`ERPReverseInventoryLogs` transaction |
 | Item issue/return | Project/job issue, return, stock validation and FIFO logs | Demo | Live atomic inventory transactions and project/job rules |
-| Inventory | Ledgers, cycle count, location update/history, stock adjustment, grading and dashboard | Demo | Live inventory calculations, audit logs, cycle count and location workflows |
+| Inventory | Ledgers, cycle count, location update/history, stock adjustment and grading; the legacy dashboard entry is a dead stub | Demo | Live inventory calculations, audit logs, cycle count and location workflows |
 | Delivery challan/DC | DC generation and related project/receipt data | Demo | Legacy document numbering, line rules, printing/export and SQL mapping |
 | Gate entry | Inward, outward, manual inward and report | Demo | `SecurityInward`/`SecurityOutward` mappings, complete fields and report |
 | Project create/approve | Full project/customer/product/order metadata and approvals | Partial | Live `ProjectMaster` list/detail reads support procurement; writes, role approvals and the full field set remain |
@@ -80,7 +81,7 @@ silently read or write the SQLite demo database while live ERP mode is selected.
 | Test-lab quote | Test quote and item detail workflow | Missing | Test-lab quote generation/view |
 | Spare-parts quote | Spare-parts quotation | Missing | `SparePartQuationDetails` workflow |
 | PEG rate | PEG/currency rate maintenance | Missing | `PegRate` UI/API |
-| Service management | Service call manager and service order entry | Demo | Live service workflow and service-order variants |
+| Service management | Service order entry and related variants; the main-menu service-call manager is dead/stubbed | Demo | Live service-order mappings and complete implemented variants |
 | Quality NC | Raise/view NC, user detail and close/corrective action | Demo | Live `NCForm`, legacy fields, authorization and state transitions |
 | Escalations | Escalation levels, reminders, reviews and views | Demo | Live escalation tables, reminders and review meetings |
 | SRF calibration | Calibration request/workflow | Missing | Complete SRF screen and data mapping |
@@ -181,9 +182,36 @@ A feature is not marked Live until all of the following are true:
 6. Quality, complaints, Kanban, timesheets and machine utilization.
 7. All 57 report queries and their Excel/PDF/label outputs.
 
-Forms that are commented out, empty, duplicated, or unreachable from the
-WinForms main menu should be classified as Legacy stub rather than migrated as
-production behavior.
+Forms that are empty, placeholder-only or duplicate copies should be classified
+as Legacy stub rather than migrated as production behavior. Unreachable or
+commented menu entries require source review because some contain substantial
+working workflows while others are empty.
+
+## Legacy reachability and migration scope
+
+“All features” means all substantial working behavior, including useful forms
+that were implemented but never connected to the classic `Form2` menu. It does
+not mean reproducing empty event handlers or duplicate source copies.
+
+Implemented orphaned workflows remain migration candidates:
+
+- Additional Masters for tax, payment, delivery, discount, excise, CST and
+  other PO terms
+- the separate `WinFormsApp1` PR, clubbing, PR-to-PO and item-code suite
+- the duplicate-but-functional material item-code screens
+- Design BOM, project status planning, project tracker and newer service-order
+  variants
+
+The following are recorded as legacy stubs, not production parity requirements:
+
+- classic `POStatus` (test message boxes), Inventory `DashBoard`,
+  `frmDeliveryChallan`, `frmServiceCallManager`, `PackingList`,
+  `frmInvoiceUpdate`, `frmProjectClosure`, `frmProjectDetails` and `BOMPR`
+- dead menu actions for Order Entry, Inventory Dashboard and Service Call
+  Manager; substantial underlying Order Entry code remains a migration
+  candidate even though its menu launch was commented out
+- byte-identical copies, secondary launcher/home forms and load-only placeholder
+  views, which do not represent separate business capabilities
 
 ## Intentional security changes
 
