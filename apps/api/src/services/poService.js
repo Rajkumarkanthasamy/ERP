@@ -290,7 +290,6 @@ export function approvePO(poRef, { step, action, remarks, user }) {
   const db = getDb();
   const lines = db.prepare('SELECT * FROM purchase_orders WHERE po_ref = ?').all(poRef);
   if (!lines.length) throw new Error('PO not found');
-  if (lines[0].po_approved) throw new Error('PO already fully approved');
 
   const amounts = computePoAmounts(lines);
   const first = lines[0];
@@ -309,6 +308,9 @@ export function approvePO(poRef, { step, action, remarks, user }) {
           })
         : null);
   if (!approvalStep) throw new Error('PO has no pending approval step');
+  if (first.po_approved && !['generate', 'send'].includes(approvalStep)) {
+    throw new Error('PO already fully approved');
+  }
 
   const tx = db.transaction(() => {
     if (approvalStep === 'reject') {
@@ -392,12 +394,14 @@ export function approvePO(poRef, { step, action, remarks, user }) {
       ).run(user.displayName || user.username, user.displayName || user.username, poRef);
     } else if (approvalStep === 'generate') {
       if (!first.po_approved) throw new Error('PO must be fully approved before generate');
+      if (first.po_generated_by) throw new Error('PO is already generated');
       db.prepare(
         `UPDATE purchase_orders SET po_generated_by = ?, po_generated_date = datetime('now'), modified_at = datetime('now')
          WHERE po_ref = ?`
       ).run(user.displayName || user.username, poRef);
     } else if (approvalStep === 'send') {
       if (!first.po_generated_by) throw new Error('Generate PO first');
+      if (first.po_sent_to_vendor_by) throw new Error('PO is already sent to the vendor');
       db.prepare(
         `UPDATE purchase_orders SET po_sent_to_vendor_by = ?, po_sent_vendor_date = datetime('now'), modified_at = datetime('now')
          WHERE po_ref = ?`

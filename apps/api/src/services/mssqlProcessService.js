@@ -538,6 +538,9 @@ export async function approvePO(poRef, { step, action, remarks, user }) {
           })
         : null);
   if (!approvalStep) throw new Error('PO has no pending approval step');
+  if (first.POApproved && !['generate', 'send'].includes(approvalStep)) {
+    throw new Error('PO already fully approved');
+  }
 
   if (approvalStep === 'reject') {
     await updatePoByRef(
@@ -590,6 +593,7 @@ export async function approvePO(poRef, { step, action, remarks, user }) {
     );
   } else if (approvalStep === 'generate') {
     if (!first.POApproved) throw new Error('PO must be fully approved before generate');
+    if (first.POGeneratedBy) throw new Error('PO is already generated');
     await updatePoByRef(
       poRef,
       `POGeneratedBy = @ByUser, POGeneratedDate = CONVERT(NVARCHAR(64), GETDATE(), 120)`,
@@ -597,6 +601,7 @@ export async function approvePO(poRef, { step, action, remarks, user }) {
     );
   } else if (approvalStep === 'send') {
     if (!first.POGeneratedBy) throw new Error('Generate PO first');
+    if (first.POSenttoVendorBy) throw new Error('PO is already sent to the vendor');
     await updatePoByRef(
       poRef,
       `POSenttoVendorBy = @ByUser, POSentVendorDate = CONVERT(NVARCHAR(64), GETDATE(), 120)`,
