@@ -448,7 +448,7 @@ export function listPOStatus({ status, poNumber, vendor, project, q, from, to } 
   }
   if (q) {
     where.push(
-      '(po_ref LIKE ? OR vendor_code LIKE ? OR IFNULL(vendor_name, "") LIKE ? OR project_code LIKE ?)'
+      `(po_ref LIKE ? OR vendor_code LIKE ? OR IFNULL(vendor_name, '') LIKE ? OR project_code LIKE ?)`
     );
     params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
   }
