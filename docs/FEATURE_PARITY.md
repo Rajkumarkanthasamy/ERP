@@ -48,9 +48,9 @@ write the SQLite demo database while live ERP mode is selected.
 | City master | Create/update city and state mapping | Partial | Live `CityMaster` create/update with `StateMaster` join; state add UI and full approval workflows remain |
 | Customer master | Full address/tax/contact fields and approval | Partial | Live create/update on `CustomerMaster` for core address/contact/GST fields; approval workflow and extended tax fields remain |
 | Vendor master | Full address, tax, banking, MSME, currency, approval and search | Partial | Live create/update on `Vendors` for core address/contact/GST; banking, MSME, currency and `VendorDetails` remain |
-| Item master | Item create/update, stock fields, UOM, storage, drawing, HSN/SAC, costs and history | Partial | Live create/update on `ItemMaster`; `FixedCost` changes write `ItemStdCostHistory`; full storage/approval fields remain |
+| Item master | Item create/update, stock fields, UOM, storage, drawing, HSN/SAC, costs and history | Partial | Live create/update on `ItemMaster`; `standardCost` maps to `UnitCost` with `ItemStdCostHistory`; separate `fixedCost` field; full storage/approval fields remain |
 | Item-code request/approval | Propose item code, hold/reject/approve, then create the approved `ItemMaster` row | Demo | SQLite workflow exists; live `ItemCodeCreation` mapping and the legacy creator/approval-authority rules remain |
-| Standard/target cost | Cost update with audit histories and restricted access | Partial | Live `FixedCost` updates via item/standard-cost screens write `ItemStdCostHistory`; target-cost history and UnitCost-only legacy path remain |
+| Standard/target cost | Cost update with audit histories and restricted access | Partial | Live standard-cost updates write `UnitCost` + `ItemStdCostHistory` (matching WinForms); target-cost history/GM approve remain |
 | Product master/BOM | Product tree and BOM maintenance | Demo | Live product/BOM tree, versioning and approvals |
 | Fixed assets | Asset register, cost centre, barcode/verification and documents | Demo | Full `AssetMaster`, `AssetCostCentre`, `AssetDocumentInfo`, upload/verification |
 | Procurement PR | PR creation, approval/reject/hold/release, clubbing and PR-to-PO prototype | Partial | Core web request/action contracts are corrected; live SQL validation, exact role rules, BOM-origin traceability and complete validation remain |
@@ -163,8 +163,9 @@ implement the legacy report queries or export/print behavior.
     not mutate inventory balances, matching the legacy workflow.
 15. City, customer, vendor and item masters now read and write the matching
     SQL Server tables. Cities resolve `StateMaster` by name or id (legacy stores
-    `StateMaster.Id` in `CityMaster.StateCode`). Item `FixedCost` changes write
-    `ItemStdCostHistory` in the same transaction.
+    `StateMaster.Id` in `CityMaster.StateCode`). Item `standardCost` maps to
+    `UnitCost` and writes `ItemStdCostHistory` when it changes; `fixedCost` maps
+    separately to `FixedCost`.
 16. Live GRN create now posts legacy inventory in the same SQL transaction:
     allocates `ITWGIN{n}` via `JobMovement`, inserts `Receipt` and
     `ERPInventoryLogs`, updates `ItemMaster` on-hand qty, writes

@@ -139,7 +139,8 @@ export async function priceVariance(prNumber) {
       lastPo.DBOMNo AS lastPoRef,
       lastPo.POPreparedDate AS lastPoDate,
       i.UnitCost AS latestPrice,
-      i.FixedCost AS standardCost,
+      i.UnitCost AS standardCost,
+      i.FixedCost AS fixedCost,
       i.TargetCost AS targetCost
     FROM PurchaseRequestDetailNew d
     LEFT JOIN ItemMaster i ON i.ItemCode = d.ItemCode
@@ -159,7 +160,7 @@ export async function priceVariance(prNumber) {
 
   return result.recordset.map((line) => {
     const baselinePrice = Number(
-      line.poUnitPrice ?? line.latestPrice ?? line.standardCost ?? 0
+      line.poUnitPrice ?? line.latestPrice ?? line.fixedCost ?? 0
     );
     const variance = calculatePriceVariance(line.prUnitCost, baselinePrice);
     return {

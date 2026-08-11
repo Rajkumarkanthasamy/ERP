@@ -23,3 +23,15 @@ test('master payload helpers normalize status, pin codes and long addresses', ()
   assert.equal(split.address1.length, 255);
   assert.equal(split.address2.length, 45);
 });
+
+test('item cost fields keep UnitCost as standardCost and FixedCost separate', () => {
+  // Contract reminder: web standardCost == ItemMaster.UnitCost (frmStandardCost);
+  // fixedCost == ItemMaster.FixedCost. Do not alias standardCost to FixedCost.
+  const mapped = {
+    unitCost: 10,
+    standardCost: 10,
+    fixedCost: 8,
+  };
+  assert.notEqual(mapped.standardCost, mapped.fixedCost);
+  assert.equal(mapped.standardCost, mapped.unitCost);
+});

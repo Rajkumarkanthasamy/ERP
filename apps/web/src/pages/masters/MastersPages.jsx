@@ -123,8 +123,8 @@ export function ItemsPage() {
         { field: 'itemDescription', header: 'Description' },
         { field: 'make', header: 'Make' },
         { field: 'uom', header: 'UOM' },
-        { field: 'standardCost', header: 'Std cost', type: 'money' },
-        { field: 'latestPurchasePrice', header: 'Last PO', type: 'money' },
+        { field: 'standardCost', header: 'Std / unit cost', type: 'money' },
+        { field: 'fixedCost', header: 'Fixed cost', type: 'money' },
       ]}
       fields={[
         { name: 'itemCode', label: 'Item code', required: true, disabledOnEdit: true },
@@ -134,7 +134,20 @@ export function ItemsPage() {
         { name: 'mfgPartNo', label: 'Mfg part no' },
         { name: 'uom', label: 'UOM', defaultValue: 'NOS' },
         { name: 'hsnCode', label: 'HSN' },
-        { name: 'standardCost', label: 'Standard cost', type: 'number', defaultValue: 0 },
+        {
+          name: 'standardCost',
+          label: 'Standard / unit cost',
+          type: 'number',
+          defaultValue: 0,
+          helperText: 'Maps to ItemMaster.UnitCost (legacy Standard Cost screen)',
+        },
+        {
+          name: 'fixedCost',
+          label: 'Fixed cost',
+          type: 'number',
+          defaultValue: 0,
+          helperText: 'Maps to ItemMaster.FixedCost',
+        },
       ]}
     />
   );
@@ -179,7 +192,7 @@ export function StandardCostPage() {
   return (
     <ResourcePage
       title="Standard Cost"
-      subtitle="Review and maintain item standard costs."
+      subtitle="Updates ItemMaster.UnitCost and appends ItemStdCostHistory (legacy Standard Cost)."
       crumbs={[{ label: 'Home', to: '/' }, { label: 'Masters' }, { label: 'Standard Cost' }]}
       endpoints={['/masters/items']}
       allowCreate={false}
@@ -190,12 +203,18 @@ export function StandardCostPage() {
         { field: 'itemCode', header: 'Item' },
         { field: 'itemDescription', header: 'Description' },
         { field: 'uom', header: 'UOM' },
-        { field: 'standardCost', header: 'Std cost', type: 'money' },
-        { field: 'latestPurchasePrice', header: 'Last purchase', type: 'money' },
+        { field: 'standardCost', header: 'Unit / std cost', type: 'money' },
+        { field: 'fixedCost', header: 'Fixed cost', type: 'money' },
       ]}
       fields={[
         { name: 'itemCode', label: 'Item code', required: true, disabledOnEdit: true },
-        { name: 'standardCost', label: 'Standard cost', type: 'number', required: true },
+        {
+          name: 'standardCost',
+          label: 'Standard / unit cost',
+          type: 'number',
+          required: true,
+          helperText: 'Writes ItemMaster.UnitCost + ItemStdCostHistory',
+        },
       ]}
     />
   );

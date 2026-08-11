@@ -53,9 +53,12 @@ function mapItemRow(row) {
   return {
     ...row,
     active: row.active === 0 || row.active === false ? 0 : 1,
-    standardCost: Number(row.standardCost || 0),
-    latestPurchasePrice: Number(row.latestPurchasePrice || 0),
-    targetCost: Number(row.targetCost || 0),
+    // Legacy Standard Cost screen updates UnitCost; FixedCost is a separate part-master field.
+    unitCost: Number(row.unitCost ?? row.standardCost ?? 0),
+    standardCost: Number(row.standardCost ?? row.unitCost ?? 0),
+    fixedCost: Number(row.fixedCost ?? 0),
+    latestPurchasePrice: Number(row.latestPurchasePrice ?? row.unitCost ?? 0),
+    targetCost: Number(row.targetCost ?? 0),
   };
 }
 
@@ -488,7 +491,9 @@ export async function listItems(q) {
         CAST(NULL AS NVARCHAR(255)) AS mfgPartNo,
         DrawingNo AS drawingNo,
         HSNSACCode AS hsnCode,
-        FixedCost AS standardCost,
+        UnitCost AS unitCost,
+        UnitCost AS standardCost,
+        FixedCost AS fixedCost,
         UnitCost AS latestPurchasePrice,
         Type AS category,
         TargetCost AS targetCost,
@@ -508,7 +513,9 @@ export async function listItems(q) {
       mapItemRow({
         ...row,
         uom: null,
+        unitCost: 0,
         standardCost: 0,
+        fixedCost: 0,
         latestPurchasePrice: 0,
         targetCost: 0,
         active: 1,
@@ -530,17 +537,28 @@ export async function upsertItem(payload, user) {
   const itemDescription = trim(payload.itemDescription) || itemCode;
   const uom = optionalText(payload.uom, 15) || 'NOS';
   const status = asActiveStatus(payload.active ?? payload.status);
-  const standardCost = Number(payload.standardCost ?? 0);
-  const latestPurchasePrice = Number(
-    payload.latestPurchasePrice != null && payload.latestPurchasePrice !== ''
-      ? payload.latestPurchasePrice
-      : standardCost || 0.01
+
+  // standardCost / unitCost → ItemMaster.UnitCost (legacy frmStandardCost)
+  // fixedCost → ItemMaster.FixedCost (part master); defaults to unit cost on insert
+  const hasStandard =
+    payload.standardCost != null && payload.standardCost !== ''
+      ? true
+      : payload.unitCost != null && payload.unitCost !== '';
+  const standardCost = Number(
+    payload.standardCost != null && payload.standardCost !== ''
+      ? payload.standardCost
+      : payload.unitCost != null && payload.unitCost !== ''
+        ? payload.unitCost
+        : 0
   );
+  const hasFixed = payload.fixedCost != null && payload.fixedCost !== '';
+  const fixedCost = Number(hasFixed ? payload.fixedCost : standardCost || 0.01);
+
   if (!Number.isFinite(standardCost) || standardCost < 0) {
     throw new Error('standardCost must be a non-negative number');
   }
-  if (!Number.isFinite(latestPurchasePrice) || latestPurchasePrice < 0) {
-    throw new Error('latestPurchasePrice must be a non-negative number');
+  if (!Number.isFinite(fixedCost) || fixedCost < 0) {
+    throw new Error('fixedCost must be a non-negative number');
   }
 
   const byUser = user?.displayName || user?.username || 'web';
@@ -552,56 +570,45 @@ export async function upsertItem(payload, user) {
     const existingReq = new sql.Request(transaction);
     existingReq.input('ItemCode', sql.NVarChar, itemCode);
     const existing = await existingReq.query(
-      `SELECT TOP 1 ItemCode, FixedCost FROM ItemMaster WHERE ItemCode = @ItemCode`
+      `SELECT TOP 1 ItemCode, UnitCost, FixedCost FROM ItemMaster WHERE ItemCode = @ItemCode`
     );
     const current = existing.recordset[0];
 
     if (current) {
+      const previousUnit = Number(current.UnitCost || 0);
+      const previousFixed = Number(current.FixedCost || 0);
+      const nextUnit = hasStandard ? standardCost : previousUnit;
+      const nextFixed = hasFixed ? fixedCost : previousFixed;
+
       const update = new sql.Request(transaction);
       update.input('ItemCode', sql.NVarChar, itemCode);
       update.input('ItemDescription', sql.NVarChar, itemDescription);
       update.input('Status', sql.NVarChar, status);
-      update.input('FixedCost', sql.Decimal(18, 2), standardCost);
+      update.input('UnitCost', sql.Float, nextUnit || 0.01);
+      update.input('FixedCost', sql.Decimal(18, 2), nextFixed || 0.01);
       update.input('Units', sql.NVarChar, uom);
       update.input('HSNSACCode', sql.NVarChar, optionalText(payload.hsnCode, 255));
       update.input('DrawingNo', sql.NVarChar, optionalText(payload.drawingNo || payload.mfgPartNo, 255));
       update.input('Type', sql.NVarChar, optionalText(payload.category, 255) || 'General');
       update.input('Remarks', sql.NVarChar, optionalText(payload.specification || payload.remarks, 255));
-      if (payload.latestPurchasePrice != null && payload.latestPurchasePrice !== '') {
-        update.input('UnitCost', sql.Float, latestPurchasePrice);
-        await update.query(`
-          UPDATE ItemMaster
-          SET ItemDescription = @ItemDescription,
-              Status = @Status,
-              FixedCost = @FixedCost,
-              Units = @Units,
-              HSNSACCode = @HSNSACCode,
-              DrawingNo = @DrawingNo,
-              Type = @Type,
-              Remarks = @Remarks,
-              UnitCost = @UnitCost
-          WHERE ItemCode = @ItemCode
-        `);
-      } else {
-        await update.query(`
-          UPDATE ItemMaster
-          SET ItemDescription = @ItemDescription,
-              Status = @Status,
-              FixedCost = @FixedCost,
-              Units = @Units,
-              HSNSACCode = @HSNSACCode,
-              DrawingNo = @DrawingNo,
-              Type = @Type,
-              Remarks = @Remarks
-          WHERE ItemCode = @ItemCode
-        `);
-      }
+      await update.query(`
+        UPDATE ItemMaster
+        SET ItemDescription = @ItemDescription,
+            Status = @Status,
+            UnitCost = @UnitCost,
+            FixedCost = @FixedCost,
+            Units = @Units,
+            HSNSACCode = @HSNSACCode,
+            DrawingNo = @DrawingNo,
+            Type = @Type,
+            Remarks = @Remarks
+        WHERE ItemCode = @ItemCode
+      `);
 
-      const previousFixed = Number(current.FixedCost || 0);
-      if (previousFixed !== standardCost) {
+      if (hasStandard && previousUnit !== nextUnit) {
         const history = new sql.Request(transaction);
         history.input('ItemCode', sql.NVarChar, itemCode);
-        history.input('StdCost', sql.Float, standardCost);
+        history.input('StdCost', sql.Float, nextUnit);
         history.input('UpdateBy', sql.VarChar, String(byUser).slice(0, 50));
         history.input(
           'Remarks',
@@ -614,10 +621,12 @@ export async function upsertItem(payload, user) {
         `);
       }
     } else {
+      const insertUnit = standardCost || 0.01;
+      const insertFixed = hasFixed ? fixedCost : insertUnit;
       const insert = new sql.Request(transaction);
       insert.input('ItemCode', sql.NVarChar, itemCode);
       insert.input('ItemDescription', sql.NVarChar, itemDescription);
-      insert.input('UnitCost', sql.Float, latestPurchasePrice || 0.01);
+      insert.input('UnitCost', sql.Float, insertUnit);
       insert.input('Type', sql.NVarChar, optionalText(payload.category, 255) || 'General');
       insert.input('Status', sql.NVarChar, status);
       insert.input('Remarks', sql.NVarChar, optionalText(payload.specification || payload.remarks, 255));
@@ -629,7 +638,7 @@ export async function upsertItem(payload, user) {
       insert.input('HSNSACCode', sql.NVarChar, optionalText(payload.hsnCode, 255));
       insert.input('DrawingNo', sql.NVarChar, optionalText(payload.drawingNo || payload.mfgPartNo, 255));
       insert.input('TypeofStorage', sql.NVarChar, optionalText(payload.storageType, 40));
-      insert.input('FixedCost', sql.Decimal(18, 2), standardCost || 0.01);
+      insert.input('FixedCost', sql.Decimal(18, 2), insertFixed);
       await insert.query(`
         INSERT INTO ItemMaster (
           ItemCode, ItemDescription, CreatedDate, UnitCost, Type, Status, Remarks, Units,
@@ -642,10 +651,10 @@ export async function upsertItem(payload, user) {
         )
       `);
 
-      if (standardCost > 0) {
+      if (insertUnit > 0) {
         const history = new sql.Request(transaction);
         history.input('ItemCode', sql.NVarChar, itemCode);
-        history.input('StdCost', sql.Float, standardCost || 0.01);
+        history.input('StdCost', sql.Float, insertUnit);
         history.input('UpdateBy', sql.VarChar, String(byUser).slice(0, 50));
         history.input('Remarks', sql.NVarChar, 'Initial standard cost');
         await history.query(`
