@@ -1,8 +1,20 @@
 import { Router } from 'express';
-import { authRequired } from '../middleware/auth.js';
+import { authRequired, requireAnyLegacyPermission } from '../middleware/auth.js';
 import * as stockService from '../services/stockService.js';
 
 const router = Router();
+router.use(
+  authRequired,
+  requireAnyLegacyPermission(
+    'receipt',
+    'issue',
+    'materialLedger',
+    'kanbanItems',
+    'kanbanIssue',
+    'kanbanItemReturn',
+    'kanbanStockAdjust'
+  )
+);
 
 function typedList(type) {
   return (req, res) => {

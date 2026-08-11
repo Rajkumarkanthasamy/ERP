@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { CircularProgress, Box } from '@mui/material';
 import { useAuth } from './auth/AuthContext';
 import LoginPage from './auth/LoginPage';
@@ -50,9 +50,12 @@ import ComplaintsPage from './pages/ComplaintsPage';
 import { ChangePasswordPage, UsersPage } from './pages/users/UsersPages';
 import ReportsPage from './pages/ReportsPage';
 import ThemeSettingsPage from './pages/ThemeSettingsPage';
+import UnauthorizedPage from './pages/UnauthorizedPage';
+import { canAccessNavItem, flattenNav } from './layout/navConfig';
 
 function Protected({ children }) {
-  const { isAuthenticated, booting } = useAuth();
+  const { isAuthenticated, booting, user } = useAuth();
+  const location = useLocation();
   if (booting) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
@@ -61,6 +64,23 @@ function Protected({ children }) {
     );
   }
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.mustChangePassword && location.pathname !== '/users/change-password') {
+    return <Navigate to="/users/change-password" replace />;
+  }
+  const matchedRoute = flattenNav()
+    .filter((item) =>
+      item.path === '/'
+        ? location.pathname === '/'
+        : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)
+    )
+    .sort((a, b) => b.path.length - a.path.length)[0];
+  if (
+    matchedRoute &&
+    !canAccessNavItem(matchedRoute, user?.permissions) &&
+    location.pathname !== '/unauthorized'
+  ) {
+    return <Navigate to="/unauthorized" replace />;
+  }
   return children;
 }
 
@@ -130,6 +150,7 @@ export default function App() {
         <Route path="users/change-password" element={<ChangePasswordPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="settings/theme" element={<ThemeSettingsPage />} />
+        <Route path="unauthorized" element={<UnauthorizedPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

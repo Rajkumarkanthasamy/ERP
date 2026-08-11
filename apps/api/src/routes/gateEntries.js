@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { authRequired } from '../middleware/auth.js';
+import { authRequired, requireAnyLegacyPermission } from '../middleware/auth.js';
 import * as gateEntryService from '../services/gateEntryService.js';
 
 const router = Router();
+router.use(authRequired, requireAnyLegacyPermission('securityCheck'));
 
 router.get('/', authRequired, (req, res) => {
   res.json(gateEntryService.listGateEntries(req.query));

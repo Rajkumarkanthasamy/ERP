@@ -9,6 +9,7 @@ export function AuthProvider({ children }) {
   const [booting, setBooting] = useState(Boolean(getToken()));
 
   const logout = useCallback(() => {
+    if (getToken()) apiPost('/auth/logout', {}).catch(() => {});
     clearAuthSession();
     setToken(null);
     setUser(null);

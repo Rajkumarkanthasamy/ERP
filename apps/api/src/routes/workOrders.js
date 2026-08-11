@@ -1,8 +1,13 @@
 import { Router } from 'express';
-import { authRequired, requirePermission } from '../middleware/auth.js';
+import {
+  authRequired,
+  requireAnyLegacyPermission,
+  requirePermission,
+} from '../middleware/auth.js';
 import * as workOrderService from '../services/workOrderService.js';
 
 const router = Router();
+router.use(authRequired, requireAnyLegacyPermission('workOrder'));
 
 router.get('/', authRequired, (req, res) => {
   res.json(workOrderService.listWorkOrders(req.query));

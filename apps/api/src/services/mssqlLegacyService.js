@@ -6,46 +6,52 @@ export async function listPurchaseRequests({ status, vendor, project, q } = {}) 
   const where = ['1=1'];
   const params = {};
   if (status && status !== 'All') {
-    where.push('Status = @status');
+    where.push('pr.Status = @status');
     params.status = status;
   }
   if (vendor) {
-    where.push('(VendorCode LIKE @vendor OR ISNULL(VendorName,\'\') LIKE @vendor)');
+    where.push('(pr.VendorCode LIKE @vendor OR ISNULL(pr.VendorName,\'\') LIKE @vendor)');
     params.vendor = `%${vendor}%`;
   }
   if (project) {
-    where.push('ProjectCode LIKE @project');
+    where.push('pr.ProjectCode LIKE @project');
     params.project = `%${project}%`;
   }
   if (q) {
-    where.push('(PRNumber LIKE @q OR ISNULL(Remarks,\'\') LIKE @q)');
+    where.push('(pr.PRNumber LIKE @q OR ISNULL(pr.Remarks,\'\') LIKE @q)');
     params.q = `%${q}%`;
   }
 
   const result = await mssqlQuery(
     `
     SELECT TOP 500
-      PRID AS id,
-      PRNumber AS prNumber,
-      ProjectCode AS projectCode,
-      ProductNo AS productNo,
-      VendorCode AS vendorCode,
-      VendorName AS vendorName,
-      TotalAmount AS totalAmount,
-      Status AS status,
-      RequestedBy AS requestedBy,
-      RequestDate AS requestDate,
-      ApprovedBy AS approvedBy,
-      ApprovedDate AS approvedDate,
-      RejectionReason AS rejectionReason,
-      HoldReason AS holdReason,
-      Remarks AS remarks,
-      ISNULL(IsClubbed, 0) AS isClubbed,
-      ClubbedFromPRIDs AS clubbedFromPrIds,
-      DATEDIFF(DAY, RequestDate, GETDATE()) AS ageDays
-    FROM PurchaseRequest
+      pr.PRID AS id,
+      pr.PRNumber AS prNumber,
+      pr.ProjectCode AS projectCode,
+      detail.ProductNo AS productNo,
+      pr.VendorCode AS vendorCode,
+      pr.VendorName AS vendorName,
+      pr.TotalAmount AS totalAmount,
+      pr.Status AS status,
+      pr.RequestedBy AS requestedBy,
+      pr.RequestDate AS requestDate,
+      pr.ApprovedBy AS approvedBy,
+      pr.ApprovedDate AS approvedDate,
+      pr.RejectionReason AS rejectionReason,
+      pr.HoldReason AS holdReason,
+      pr.Remarks AS remarks,
+      ISNULL(pr.IsClubbed, 0) AS isClubbed,
+      pr.ClubbedFromPRIDs AS clubbedFromPrIds,
+      DATEDIFF(DAY, pr.RequestDate, GETDATE()) AS ageDays
+    FROM PurchaseRequest pr
+    OUTER APPLY (
+      SELECT TOP 1 d.ProductNo
+      FROM PurchaseRequestDetailNew d
+      WHERE d.PRNumber = pr.PRNumber
+      ORDER BY d.DetailID
+    ) detail
     WHERE ${where.join(' AND ')}
-    ORDER BY RequestDate DESC, PRID DESC
+    ORDER BY pr.RequestDate DESC, pr.PRID DESC
     `,
     params
   );
@@ -56,11 +62,19 @@ export async function getPurchaseRequest(prNumber) {
   const header = await mssqlQuery(
     `
     SELECT TOP 1
-      PRID AS id, PRNumber AS prNumber, ProjectCode AS projectCode, ProductNo AS productNo,
-      VendorCode AS vendorCode, VendorName AS vendorName, TotalAmount AS totalAmount,
-      Status AS status, RequestedBy AS requestedBy, RequestDate AS requestDate,
-      ApprovedBy AS approvedBy, ApprovedDate AS approvedDate, Remarks AS remarks
-    FROM PurchaseRequest WHERE PRNumber = @prNumber
+      pr.PRID AS id, pr.PRNumber AS prNumber, pr.ProjectCode AS projectCode,
+      detail.ProductNo AS productNo, pr.VendorCode AS vendorCode,
+      pr.VendorName AS vendorName, pr.TotalAmount AS totalAmount,
+      pr.Status AS status, pr.RequestedBy AS requestedBy, pr.RequestDate AS requestDate,
+      pr.ApprovedBy AS approvedBy, pr.ApprovedDate AS approvedDate, pr.Remarks AS remarks
+    FROM PurchaseRequest pr
+    OUTER APPLY (
+      SELECT TOP 1 d.ProductNo
+      FROM PurchaseRequestDetailNew d
+      WHERE d.PRNumber = pr.PRNumber
+      ORDER BY d.DetailID
+    ) detail
+    WHERE pr.PRNumber = @prNumber
     `,
     { prNumber }
   );
@@ -110,48 +124,51 @@ export async function listPurchaseOrders({ status, poNumber, vendor, project } =
   const where = ['1=1'];
   const params = {};
   if (poNumber) {
-    where.push('DBOMNo LIKE @poNumber');
+    where.push('po.DBOMNo LIKE @poNumber');
     params.poNumber = `%${poNumber}%`;
   }
   if (vendor) {
-    where.push('(VendorCode LIKE @vendor OR ISNULL(VendorName,\'\') LIKE @vendor)');
+    where.push('(po.VendorCode LIKE @vendor OR ISNULL(v.VendorName,\'\') LIKE @vendor)');
     params.vendor = `%${vendor}%`;
   }
   if (project) {
-    where.push('ProjectCode LIKE @project');
+    where.push('po.ProjectCode LIKE @project');
     params.project = `%${project}%`;
   }
 
   const result = await mssqlQuery(
     `
     SELECT TOP 1000
-      ID AS id,
-      DBOMNo AS poRef,
-      ProjectCode AS projectCode,
-      VendorCode AS vendorCode,
-      VendorName AS vendorName,
-      ItemCode AS itemCode,
-      ItemDescription AS itemDescription,
-      RequariedQty AS requiredQty,
-      ISNULL(RemainingQty, RequariedQty) AS remainingQty,
-      UnitPrice AS unitPrice,
-      Amount AS amount,
-      ISNULL(IGSTAmount,0) AS igstAmount,
-      ISNULL(SGSTAmount,0) AS sgstAmount,
-      ISNULL(CGSTAmount,0) AS cgstAmount,
-      ISNULL(POApproved,0) AS poApproved,
-      PMApproved AS pmApproved,
-      MHApproved AS mhApproved,
-      OMApproved AS omApproved,
-      GMCostApproved AS gmApproved,
-      POGeneratedBy AS poGeneratedBy,
-      POGeneratedDate AS poGeneratedDate,
-      POSenttoVendorBy AS poSentToVendorBy,
-      PreparedBy AS preparedBy,
-      POPreparedDate AS preparedDate
-    FROM PurchaseOrder
+      po.ID AS id,
+      po.DBOMNo AS poRef,
+      po.ProjectCode AS projectCode,
+      po.VendorCode AS vendorCode,
+      v.VendorName AS vendorName,
+      po.ItemCode AS itemCode,
+      i.ItemDescription AS itemDescription,
+      po.UOM AS uom,
+      po.RequariedQty AS requiredQty,
+      ISNULL(po.RemainingQty, po.RequariedQty) AS remainingQty,
+      po.UnitPrice AS unitPrice,
+      po.Amount AS amount,
+      ISNULL(po.IGSTAmount,0) AS igstAmount,
+      ISNULL(po.SGSTAmount,0) AS sgstAmount,
+      ISNULL(po.CGSTAmount,0) AS cgstAmount,
+      ISNULL(po.POApproved,0) AS poApproved,
+      po.PMApproved AS pmApproved,
+      po.MHApproved AS mhApproved,
+      po.OMApproved AS omApproved,
+      po.GMCostApproved AS gmApproved,
+      po.POGeneratedBy AS poGeneratedBy,
+      po.POGeneratedDate AS poGeneratedDate,
+      po.POSenttoVendorBy AS poSentToVendorBy,
+      po.PreparedBy AS preparedBy,
+      po.POPreparedDate AS preparedDate
+    FROM PurchaseOrder po
+    LEFT JOIN Vendors v ON v.VendorCode = po.VendorCode
+    LEFT JOIN ItemMaster i ON i.ItemCode = po.ItemCode
     WHERE ${where.join(' AND ')}
-    ORDER BY ID DESC
+    ORDER BY po.ID DESC
     `,
     params
   );
@@ -210,24 +227,33 @@ export async function listPurchaseOrders({ status, poNumber, vendor, project } =
 }
 
 export async function listVendors() {
-  try {
-    const result = await mssqlQuery(
-      `
-      SELECT TOP 500
-        VendorCode AS vendorCode,
-        VendorName AS vendorName,
-        City AS city,
-        GSTNo AS gstin
-      FROM VendorMaster
-      ORDER BY VendorName
-      `
-    );
-    return result.recordset;
-  } catch {
-    // Column names vary across ERP versions
-    const result = await mssqlQuery(`SELECT TOP 200 * FROM VendorMaster`);
-    return result.recordset;
-  }
+  const result = await mssqlQuery(
+    `
+    SELECT TOP 500
+      v.id,
+      v.VendorCode AS vendorCode,
+      v.VendorName AS vendorName,
+      v.District AS city,
+      v.GSTCode AS gstin,
+      CONCAT(
+        ISNULL(v.Address1, ''),
+        CASE WHEN NULLIF(v.Address2, '') IS NULL THEN '' ELSE ', ' + v.Address2 END,
+        CASE WHEN NULLIF(v.Address3, '') IS NULL THEN '' ELSE ', ' + v.Address3 END
+      ) AS address,
+      v.ContactPerson AS contactPerson,
+      COALESCE(NULLIF(v.MobileNo, ''), v.PhoneNo) AS phone,
+      v.EmailAddress AS email,
+      CASE WHEN ISNULL(v.Status, 'Active') = 'Inactive' THEN 0 ELSE 1 END AS active,
+      ISNULL(v.Approved, 0) AS approved
+    FROM Vendors v
+    ORDER BY v.VendorName
+    `
+  );
+  return result.recordset.map((row) => ({
+    ...row,
+    active: Boolean(row.active),
+    approved: Boolean(row.approved),
+  }));
 }
 
 export async function listItems(q) {
@@ -243,10 +269,15 @@ export async function listItems(q) {
       SELECT TOP 500
         ItemCode AS itemCode,
         ItemDescription AS itemDescription,
-        UOM AS uom,
-        Make AS make,
-        HSNCode AS hsnCode,
-        StandardCost AS standardCost
+        Units AS uom,
+        CAST(NULL AS NVARCHAR(255)) AS make,
+        DrawingNo AS drawingNo,
+        HSNSACCode AS hsnCode,
+        FixedCost AS standardCost,
+        UnitCost AS latestPurchasePrice,
+        Type AS category,
+        TargetCost AS targetCost,
+        CASE WHEN ISNULL(Status, 'Active') = 'Inactive' THEN 0 ELSE 1 END AS active
       FROM ItemMaster
       WHERE ${where}
       ORDER BY ItemCode
@@ -255,7 +286,9 @@ export async function listItems(q) {
     );
     return result.recordset;
   } catch {
-    const result = await mssqlQuery(`SELECT TOP 200 * FROM ItemMaster`);
+    const result = await mssqlQuery(
+      `SELECT TOP 200 ItemCode AS itemCode, ItemDescription AS itemDescription FROM ItemMaster ORDER BY ItemCode`
+    );
     return result.recordset;
   }
 }

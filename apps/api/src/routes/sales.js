@@ -1,8 +1,24 @@
 import { Router } from 'express';
-import { authRequired, requirePermission } from '../middleware/auth.js';
+import {
+  authRequired,
+  requireAnyLegacyPermission,
+  requirePermission,
+} from '../middleware/auth.js';
 import * as salesService from '../services/salesService.js';
 
 const router = Router();
+router.use(
+  authRequired,
+  requireAnyLegacyPermission(
+    'enquiryRegister',
+    'opportunityDetails',
+    'salesQuote',
+    'quotation',
+    'customerVisit',
+    'serviceQuote',
+    'testingLabQuote'
+  )
+);
 
 // Enquiries
 router.get('/enquiries', authRequired, (req, res) => {

@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { authRequired } from '../middleware/auth.js';
+import { authRequired, requireAnyLegacyPermission } from '../middleware/auth.js';
 import * as qualityService from '../services/qualityService.js';
 
 const router = Router();
+router.use(authRequired, requireAnyLegacyPermission('qualityManagement'));
 
 // Non-conformances
 router.get('/ncs', authRequired, (req, res) => {

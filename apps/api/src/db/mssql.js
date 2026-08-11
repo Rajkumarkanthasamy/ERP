@@ -3,6 +3,15 @@ import sql from 'mssql';
 let pool;
 let lastError = null;
 
+const CORE_LEGACY_TABLES = [
+  'Login',
+  'PurchaseRequest',
+  'PurchaseRequestDetailNew',
+  'PurchaseOrder',
+  'Vendors',
+  'ItemMaster',
+];
+
 function buildConfig() {
   if (process.env.MSSQL_CONNECTION_STRING) {
     return process.env.MSSQL_CONNECTION_STRING;
@@ -84,12 +93,23 @@ export async function mssqlHealth() {
     const p = await getMssqlPool();
     const result = await p.request().query('SELECT DB_NAME() AS dbName, @@SERVERNAME AS serverName, GETDATE() AS serverTime');
     const row = result.recordset[0] || {};
+    const schemaResult = await p.request().query(`
+      SELECT TABLE_NAME AS tableName
+      FROM INFORMATION_SCHEMA.TABLES
+      WHERE TABLE_SCHEMA = 'dbo'
+        AND TABLE_NAME IN (${CORE_LEGACY_TABLES.map((name) => `'${name}'`).join(', ')})
+    `);
+    const existing = new Set(schemaResult.recordset.map((item) => item.tableName));
+    const missingTables = CORE_LEGACY_TABLES.filter((name) => !existing.has(name));
     return {
       ok: true,
       client: 'mssql',
       database: row.dbName,
       server: row.serverName,
       serverTime: row.serverTime,
+      schemaCompatible: missingTables.length === 0,
+      checkedTables: CORE_LEGACY_TABLES,
+      missingTables,
       lastError: null,
     };
   } catch (err) {

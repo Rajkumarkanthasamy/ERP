@@ -32,11 +32,11 @@ import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined
 import { useTheme } from '@mui/material/styles';
 import { useAuth } from '../auth/AuthContext';
 import { useThemeSettings } from '../theme/ThemeSettingsContext';
-import { BISS_LOGO, flattenNav, navSections } from './navConfig';
+import { BISS_LOGO, canAccessNavItem, flattenNav, navSections } from './navConfig';
 
 const DRAWER_WIDTH = 280;
 
-function NavContent({ onNavigate, filter }) {
+function NavContent({ onNavigate, filter, permissions }) {
   const location = useLocation();
   const theme = useTheme();
   const [openSections, setOpenSections] = useState(() =>
@@ -45,8 +45,14 @@ function NavContent({ onNavigate, filter }) {
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    if (!q) return navSections;
-    return navSections
+    const allowedSections = navSections
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => canAccessNavItem(item, permissions)),
+      }))
+      .filter((section) => section.items.length > 0);
+    if (!q) return allowedSections;
+    return allowedSections
       .map((section) => ({
         ...section,
         items: section.items.filter(
@@ -57,7 +63,7 @@ function NavContent({ onNavigate, filter }) {
         ),
       }))
       .filter((section) => section.items.length > 0);
-  }, [filter]);
+  }, [filter, permissions]);
 
   useEffect(() => {
     if (filter.trim()) {
@@ -181,7 +187,7 @@ export default function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const allRoutes = useMemo(() => flattenNav(), []);
+  const allRoutes = useMemo(() => flattenNav(user?.permissions), [user?.permissions]);
 
   const pageTitle = useMemo(() => {
     const match = allRoutes.find((r) =>
@@ -193,6 +199,7 @@ export default function AppLayout() {
   const drawer = (
     <NavContent
       filter={navFilter}
+      permissions={user?.permissions}
       onNavigate={() => {
         if (!isDesktop) setMobileOpen(false);
       }}

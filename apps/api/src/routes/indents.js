@@ -1,8 +1,13 @@
 import { Router } from 'express';
-import { authRequired, requirePermission } from '../middleware/auth.js';
+import {
+  authRequired,
+  requireAnyLegacyPermission,
+  requirePermission,
+} from '../middleware/auth.js';
 import * as indentService from '../services/indentService.js';
 
 const router = Router();
+router.use(authRequired, requireAnyLegacyPermission('indent'));
 
 router.get('/', authRequired, (req, res) => {
   res.json(indentService.listIndents(req.query));

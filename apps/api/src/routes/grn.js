@@ -1,11 +1,12 @@
 import { Router } from 'express';
-import { authRequired } from '../middleware/auth.js';
+import { authRequired, requireAnyLegacyPermission } from '../middleware/auth.js';
 import { isMssqlMode } from '../db/mssql.js';
 import * as grnService from '../services/grnService.js';
 import * as processSvc from '../services/mssqlProcessService.js';
 import { mssqlQuery } from '../db/mssql.js';
 
 const router = Router();
+router.use(authRequired, requireAnyLegacyPermission('receipt', 'purchaseOrder'));
 
 router.get('/open-po-lines', authRequired, async (_req, res) => {
   try {

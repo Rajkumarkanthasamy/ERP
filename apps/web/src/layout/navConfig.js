@@ -34,19 +34,19 @@ export const navSections = [
     label: 'Procurement',
     icon: ShoppingCartOutlinedIcon,
     items: [
-      { label: 'Procurement Dashboard', path: '/procurement' },
-      { label: 'Kanban', path: '/procurement/kanban' },
-      { label: 'PR Generation', path: '/procurement/pr-generation' },
-      { label: 'PR Approval', path: '/procurement/pr-approval' },
-      { label: 'PR Clubbing', path: '/procurement/pr-clubbing' },
-      { label: 'PR → PO Workspace', path: '/procurement/pr-to-po' },
-      { label: 'PO Approval', path: '/procurement/po-approval' },
-      { label: 'PO Status View', path: '/procurement/po-status' },
-      { label: 'GRN', path: '/procurement/grn' },
-      { label: 'Price Variance', path: '/procurement/price-variance' },
-      { label: 'Item Code Creation', path: '/procurement/item-codes' },
-      { label: 'Item Code Approval', path: '/procurement/item-code-approval' },
-      { label: 'Work Orders', path: '/procurement/work-orders' },
+      { label: 'Procurement Dashboard', path: '/procurement', permission: 'purchaseOrder' },
+      { label: 'Kanban', path: '/procurement/kanban', permission: ['purchaseOrder', 'kanbanItems'] },
+      { label: 'PR Generation', path: '/procurement/pr-generation', permission: 'purchaseOrder' },
+      { label: 'PR Approval', path: '/procurement/pr-approval', permission: ['purchaseManager', 'manufacturingHead', 'generalManager', 'operationManager'] },
+      { label: 'PR Clubbing', path: '/procurement/pr-clubbing', permission: 'purchaseOrder' },
+      { label: 'PR → PO Workspace', path: '/procurement/pr-to-po', permission: ['purchaseOrder', 'poWoGenerate'] },
+      { label: 'PO Approval', path: '/procurement/po-approval', permission: ['purchaseManager', 'manufacturingHead', 'generalManager', 'operationManager', 'financeManager'] },
+      { label: 'PO Status View', path: '/procurement/po-status', permission: ['purchaseOrder', 'poTrack'] },
+      { label: 'GRN', path: '/procurement/grn', permission: 'receipt' },
+      { label: 'Price Variance', path: '/procurement/price-variance', permission: ['purchaseOrder', 'standardCostUpdate'] },
+      { label: 'Item Code Creation', path: '/procurement/item-codes', permission: 'partMaster' },
+      { label: 'Item Code Approval', path: '/procurement/item-code-approval', permission: ['partMaster', 'purchaseManager'] },
+      { label: 'Work Orders', path: '/procurement/work-orders', permission: 'workOrder' },
     ],
   },
   {
@@ -54,13 +54,13 @@ export const navSections = [
     label: 'ERP Masters',
     icon: Inventory2OutlinedIcon,
     items: [
-      { label: 'Cities', path: '/masters/cities' },
-      { label: 'Customers', path: '/masters/customers' },
-      { label: 'Vendors', path: '/masters/vendors' },
-      { label: 'Items', path: '/masters/items' },
-      { label: 'Assets', path: '/masters/assets' },
-      { label: 'Standard Cost', path: '/masters/standard-cost' },
-      { label: 'Sales Product Master', path: '/masters/sales-products' },
+      { label: 'Cities', path: '/masters/cities', permission: 'cityMaster' },
+      { label: 'Customers', path: '/masters/customers', permission: 'customerMaster' },
+      { label: 'Vendors', path: '/masters/vendors', permission: 'vendorMaster' },
+      { label: 'Items', path: '/masters/items', permission: 'partMaster' },
+      { label: 'Assets', path: '/masters/assets', permission: 'assetMaster' },
+      { label: 'Standard Cost', path: '/masters/standard-cost', permission: 'standardCostUpdate' },
+      { label: 'Sales Product Master', path: '/masters/sales-products', permission: 'salesProduct' },
     ],
   },
   {
@@ -68,12 +68,12 @@ export const navSections = [
     label: 'Stores / Inventory',
     icon: WarehouseOutlinedIcon,
     items: [
-      { label: 'Stock Ledger', path: '/stores/stock-ledger' },
-      { label: 'GIN Receipt', path: '/stores/gin' },
-      { label: 'Item Issue', path: '/stores/issue' },
-      { label: 'Item Return', path: '/stores/return' },
-      { label: 'Stock Adjust', path: '/stores/adjust' },
-      { label: 'Item Production', path: '/stores/production' },
+      { label: 'Stock Ledger', path: '/stores/stock-ledger', permission: 'materialLedger' },
+      { label: 'GIN Receipt', path: '/stores/gin', permission: 'receipt' },
+      { label: 'Item Issue', path: '/stores/issue', permission: 'issue' },
+      { label: 'Item Return', path: '/stores/return', permission: ['receipt', 'issue'] },
+      { label: 'Stock Adjust', path: '/stores/adjust', permission: 'kanbanStockAdjust' },
+      { label: 'Item Production', path: '/stores/production', permission: 'kanbanItems' },
     ],
   },
   {
@@ -81,9 +81,9 @@ export const navSections = [
     label: 'Gate Entry',
     icon: GateIcon,
     items: [
-      { label: 'Inward', path: '/gate/inward' },
-      { label: 'Outward', path: '/gate/outward' },
-      { label: 'Manual Inward', path: '/gate/manual-inward' },
+      { label: 'Inward', path: '/gate/inward', permission: 'securityCheck' },
+      { label: 'Outward', path: '/gate/outward', permission: 'securityCheck' },
+      { label: 'Manual Inward', path: '/gate/manual-inward', permission: 'securityCheck' },
     ],
   },
   {
@@ -91,11 +91,11 @@ export const navSections = [
     label: 'Projects',
     icon: AccountTreeOutlinedIcon,
     items: [
-      { label: 'Indent', path: '/projects/indents' },
-      { label: 'Project List / Create', path: '/projects' },
-      { label: 'BOM Approve', path: '/projects/bom-approve' },
-      { label: 'Installation Status', path: '/projects/installation' },
-      { label: 'Documents', path: '/projects/documents' },
+      { label: 'Indent', path: '/projects/indents', permission: 'indent' },
+      { label: 'Project List / Create', path: '/projects', permission: ['projectMaster', 'createProject'] },
+      { label: 'BOM Approve', path: '/projects/bom-approve', permission: ['projectBom', 'bomAuthorise'] },
+      { label: 'Installation Status', path: '/projects/installation', permission: 'projectInstallStatus' },
+      { label: 'Documents', path: '/projects/documents', permission: 'projectDocuments' },
     ],
   },
   {
@@ -103,50 +103,50 @@ export const navSections = [
     label: 'Sales',
     icon: TrendingUpOutlinedIcon,
     items: [
-      { label: 'Enquiry Register', path: '/sales/enquiries' },
-      { label: 'Opportunities', path: '/sales/opportunities' },
-      { label: 'Quotes', path: '/sales/quotes' },
+      { label: 'Enquiry Register', path: '/sales/enquiries', permission: 'enquiryRegister' },
+      { label: 'Opportunities', path: '/sales/opportunities', permission: 'opportunityDetails' },
+      { label: 'Quotes', path: '/sales/quotes', permission: ['salesQuote', 'quotation'] },
     ],
   },
   {
     id: 'service',
     label: 'Service',
     icon: BuildOutlinedIcon,
-    items: [{ label: 'Service Calls', path: '/service/calls' }],
+    items: [{ label: 'Service Calls', path: '/service/calls', permission: ['serviceQuote', 'projectMaster'] }],
   },
   {
     id: 'quality',
     label: 'Quality',
     icon: VerifiedOutlinedIcon,
     items: [
-      { label: 'NC', path: '/quality/nc' },
-      { label: 'Escalations', path: '/quality/escalations' },
+      { label: 'NC', path: '/quality/nc', permission: 'qualityManagement' },
+      { label: 'Escalations', path: '/quality/escalations', permission: 'qualityManagement' },
     ],
   },
   {
     id: 'timesheet',
     label: 'Time Sheet',
     icon: AccessTimeOutlinedIcon,
-    items: [{ label: 'Time Sheet', path: '/timesheets' }],
+    items: [{ label: 'Time Sheet', path: '/timesheets', permission: 'timesheet' }],
   },
   {
     id: 'delivery',
     label: 'Delivery Challan',
     icon: LocalShippingOutlinedIcon,
-    items: [{ label: 'Delivery Challan', path: '/delivery-challans' }],
+    items: [{ label: 'Delivery Challan', path: '/delivery-challans', permission: 'receipt' }],
   },
   {
     id: 'complaints',
     label: 'Complaints / Support',
     icon: SupportAgentOutlinedIcon,
-    items: [{ label: 'Complaints', path: '/complaints' }],
+    items: [{ label: 'Complaints', path: '/complaints', permission: 'complaint' }],
   },
   {
     id: 'users',
     label: 'Users',
     icon: PeopleOutlinedIcon,
     items: [
-      { label: 'Users', path: '/users' },
+      { label: 'Users', path: '/users', permission: 'addUser' },
       { label: 'Change Password', path: '/users/change-password' },
     ],
   },
@@ -154,16 +154,27 @@ export const navSections = [
     id: 'reports',
     label: 'Reports',
     icon: AssessmentOutlinedIcon,
-    items: [{ label: 'Reports Summary', path: '/reports' }],
+    items: [{ label: 'Reports Summary', path: '/reports', permission: 'reports' }],
   },
 ];
 
-export function flattenNav() {
+export function canAccessNavItem(item, permissions) {
+  if (!item.permission) return true;
+  // SQLite/demo users predate the legacy permission map and retain full demo
+  // navigation. MSSQL users receive the map from the Login table.
+  if (!permissions || Object.keys(permissions).length === 0) return true;
+  const required = Array.isArray(item.permission) ? item.permission : [item.permission];
+  return required.some((key) => Boolean(permissions[key]));
+}
+
+export function flattenNav(permissions) {
   return navSections.flatMap((section) =>
-    section.items.map((item) => ({
-      ...item,
-      section: section.label,
-      sectionId: section.id,
-    }))
+    section.items
+      .filter((item) => canAccessNavItem(item, permissions))
+      .map((item) => ({
+        ...item,
+        section: section.label,
+        sectionId: section.id,
+      }))
   );
 }

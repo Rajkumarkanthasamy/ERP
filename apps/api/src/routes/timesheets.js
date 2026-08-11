@@ -1,8 +1,16 @@
 import { Router } from 'express';
-import { authRequired, requirePermission } from '../middleware/auth.js';
+import {
+  authRequired,
+  requireAnyLegacyPermission,
+  requirePermission,
+} from '../middleware/auth.js';
 import * as timesheetService from '../services/timesheetService.js';
 
 const router = Router();
+router.use(
+  authRequired,
+  requireAnyLegacyPermission('timesheet', 'timesheetReports', 'validationTimesheet')
+);
 
 router.get('/', authRequired, (req, res) => {
   res.json(timesheetService.listTimesheets(req.query));

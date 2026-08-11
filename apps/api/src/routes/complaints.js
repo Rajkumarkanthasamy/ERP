@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { authRequired } from '../middleware/auth.js';
+import { authRequired, requireAnyLegacyPermission } from '../middleware/auth.js';
 import * as complaintService from '../services/complaintService.js';
 
 const router = Router();
+router.use(authRequired, requireAnyLegacyPermission('complaint'));
 
 router.get('/', authRequired, (req, res) => {
   res.json(complaintService.listComplaints(req.query));

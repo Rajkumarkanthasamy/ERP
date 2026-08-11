@@ -1,8 +1,12 @@
 import { Router } from 'express';
-import { authRequired } from '../middleware/auth.js';
+import { authRequired, requireAnyLegacyPermission } from '../middleware/auth.js';
 import * as serviceCallService from '../services/serviceCallService.js';
 
 const router = Router();
+router.use(
+  authRequired,
+  requireAnyLegacyPermission('serviceQuote', 'projectMaster', 'projectWarranty')
+);
 
 router.get('/', authRequired, (req, res) => {
   res.json(serviceCallService.listServiceCalls(req.query));

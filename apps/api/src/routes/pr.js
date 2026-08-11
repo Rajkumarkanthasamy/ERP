@@ -1,5 +1,9 @@
 import { Router } from 'express';
-import { authRequired, requirePermission } from '../middleware/auth.js';
+import {
+  authRequired,
+  requireAnyLegacyPermission,
+  requirePermission,
+} from '../middleware/auth.js';
 import { isMssqlMode } from '../db/mssql.js';
 import * as prService from '../services/prService.js';
 import * as legacy from '../services/mssqlLegacyService.js';
@@ -7,6 +11,17 @@ import * as processSvc from '../services/mssqlProcessService.js';
 import { PR_STATUS } from '../constants.js';
 
 const router = Router();
+router.use(
+  authRequired,
+  requireAnyLegacyPermission(
+    'purchaseOrder',
+    'poWoGenerate',
+    'purchaseManager',
+    'manufacturingHead',
+    'generalManager',
+    'operationManager'
+  )
+);
 
 router.get('/', authRequired, async (req, res) => {
   try {

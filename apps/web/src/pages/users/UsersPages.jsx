@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Box, Button, Paper, Stack, TextField, Typography } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import ResourcePage from '../../components/ResourcePage';
 import PageHeader from '../../components/PageHeader';
 import { apiPost } from '../../api/client';
@@ -16,12 +17,19 @@ export function UsersPage() {
       createEndpoint="/masters/users"
       allowCreate={false}
       createLabel="Add user"
-      allowEdit
       columns={[
         { field: 'username', header: 'Username' },
         { field: 'displayName', header: 'Name', getValue: (r) => r.displayName || r.name },
         { field: 'role', header: 'Role' },
         { field: 'department', header: 'Department' },
+        {
+          field: 'permissions',
+          header: 'Permissions',
+          getValue: (row) =>
+            row.permissions
+              ? `${Object.values(row.permissions).filter(Boolean).length} enabled`
+              : 'Legacy demo role',
+        },
         { field: 'active', header: 'Active', render: (v) => (v === 0 || v === false ? 'No' : 'Yes') },
       ]}
       fields={[
@@ -36,7 +44,8 @@ export function UsersPage() {
 }
 
 export function ChangePasswordPage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const { success, error } = useSnackbar();
   const [form, setForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [busy, setBusy] = useState(false);
@@ -49,12 +58,14 @@ export function ChangePasswordPage() {
     }
     setBusy(true);
     try {
-      await apiPost('/users/change-password', {
+      await apiPost('/auth/change-password', {
         currentPassword: form.currentPassword,
         newPassword: form.newPassword,
       });
-      success('Password updated');
+      success('Password updated. Sign in with the new password.');
       setForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      logout();
+      navigate('/login', { replace: true });
     } catch (err) {
       error(err.message || 'Unable to change password');
     } finally {
@@ -100,7 +111,7 @@ export function ChangePasswordPage() {
               {busy ? 'Saving…' : 'Update password'}
             </Button>
             <Typography variant="caption" color="text.secondary">
-              If the change-password API is not yet available, the request will fail gracefully.
+              Use exactly 12 characters with uppercase, lowercase, number, and special character.
             </Typography>
           </Stack>
         </Box>

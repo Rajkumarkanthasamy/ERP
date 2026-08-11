@@ -10,6 +10,11 @@ export function signToken(user) {
       displayName: user.display_name,
       role: user.role,
       department: user.department,
+      email: user.email || '',
+      permissions: user.permissions || {},
+      erpVersion: user.erpVersion ?? null,
+      passwordExpiryDays: user.passwordExpiryDays ?? null,
+      mustChangePassword: !!user.mustChangePassword,
       canApprovePR: !!user.can_approve_pr,
       canGeneratePO: !!user.can_generate_po,
       canApprovePO: !!user.can_approve_po,
@@ -44,5 +49,18 @@ export function requirePermission(flag) {
       return res.status(403).json({ error: `Missing permission: ${flag}` });
     }
     next();
+  };
+}
+
+export function requireAnyLegacyPermission(...flags) {
+  return (req, res, next) => {
+    const permissions = req.user?.permissions;
+    // SQLite demo tokens do not carry the legacy permission map.
+    if (!permissions || Object.keys(permissions).length === 0) return next();
+    if (flags.some((flag) => permissions[flag])) return next();
+    return res.status(403).json({
+      error: 'You do not have access to this ExistERP module',
+      requiredAny: flags,
+    });
   };
 }
