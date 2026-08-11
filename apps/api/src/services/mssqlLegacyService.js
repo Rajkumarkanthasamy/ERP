@@ -302,45 +302,7 @@ export async function listPurchaseOrders({ status, poNumber, vendor, project, q 
   };
 }
 
-export async function listProjects(q) {
-  const where = [];
-  const params = {};
-  if (q) {
-    where.push(
-      `(ProjectCode LIKE @q OR ISNULL(ProjectDescription, '') LIKE @q OR ISNULL(Customer, '') LIKE @q)`
-    );
-    params.q = `%${q}%`;
-  }
-  const result = await mssqlQuery(
-    `
-    SELECT TOP 1000
-      Id AS id,
-      ProjectCode AS projectCode,
-      ProjectDescription AS projectName,
-      SystemSubType AS productNo,
-      CustomerCode AS customerCode,
-      Customer AS customerName,
-      Status AS status,
-      ProjectInstallStatus AS installationStatus,
-      ShipmentDate AS shipmentDate,
-      DateCreated AS startDate,
-      Remarks AS remarks,
-      ApprovedBy AS approvedBy,
-      ApprovedDate AS approvedDate,
-      CASE
-        WHEN NULLIF(ApprovedBy, '') IS NULL THEN 'Pending'
-        ELSE 'Approved'
-      END AS approvalStatus
-    FROM ProjectMaster
-    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-    ORDER BY Id DESC
-    `,
-    params
-  );
-  return result.recordset;
-}
-
-export { listVendors, listItems } from './mssqlMasterService.js';
+export { listVendors, listItems, listProjects } from './mssqlMasterService.js';
 
 export async function dashboardSummary() {
   const pending = await mssqlQuery(

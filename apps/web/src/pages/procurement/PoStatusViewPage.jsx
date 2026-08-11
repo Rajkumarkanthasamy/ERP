@@ -25,6 +25,7 @@ import { apiGet, apiPatch, apiPost } from '../../api/client';
 import { formatDate, formatINR } from '../../utils/format';
 import { useSnackbar } from '../../components/SnackbarProvider';
 import { useAuth } from '../../auth/AuthContext';
+import CollabPanel from '../../components/CollabPanel';
 
 const STATUS_OPTIONS = [
   'All',
@@ -66,6 +67,7 @@ export default function PoStatusViewPage() {
   const [trackPo, setTrackPo] = useState(null);
   const [finalRemarks, setFinalRemarks] = useState('');
   const [oaDate, setOaDate] = useState('');
+  const [selectedPoRef, setSelectedPoRef] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -193,7 +195,13 @@ export default function PoStatusViewPage() {
             </TableHead>
             <TableBody>
               {rows.map((po) => (
-                <TableRow key={po.poRef} hover>
+                <TableRow
+                  key={po.poRef}
+                  hover
+                  selected={selectedPoRef === po.poRef}
+                  onClick={() => setSelectedPoRef(po.poRef)}
+                  sx={{ cursor: 'pointer' }}
+                >
                   <TableCell>{po.poRef}</TableCell>
                   <TableCell>{po.vendorName || po.vendorCode}</TableCell>
                   <TableCell>{po.projectCode || '—'}</TableCell>
@@ -202,7 +210,7 @@ export default function PoStatusViewPage() {
                   <TableCell>
                     <StatusChip status={po.status} />
                   </TableCell>
-                  <TableCell align="right">
+                  <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                     <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="wrap">
                       {user?.canGeneratePO && po.status === 'Ready to Generate' && (
                         <Button
@@ -273,6 +281,10 @@ export default function PoStatusViewPage() {
           </Table>
         </TableContainer>
       )}
+
+      <Paper sx={{ p: 2.5, mt: 2 }}>
+        <CollabPanel entityType="PO" entityRef={selectedPoRef} title="PO collaboration" />
+      </Paper>
 
       <Dialog open={Boolean(lifecycle)} onClose={() => setLifecycle(null)} fullWidth maxWidth="sm">
         <DialogTitle>

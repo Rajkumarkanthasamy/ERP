@@ -25,6 +25,8 @@ import {
   StandardCostPage,
   VendorsPage,
 } from './pages/masters/MastersPages';
+import AdditionalMastersPage from './pages/masters/AdditionalMastersPage';
+import TargetCostPage from './pages/masters/TargetCostPage';
 import {
   GinReceiptPage,
   ItemIssuePage,
@@ -117,6 +119,8 @@ export default function App() {
         <Route path="masters/items" element={<ItemsPage />} />
         <Route path="masters/assets" element={<AssetsPage />} />
         <Route path="masters/standard-cost" element={<StandardCostPage />} />
+        <Route path="masters/target-cost" element={<TargetCostPage />} />
+        <Route path="masters/additional" element={<AdditionalMastersPage />} />
         <Route path="masters/sales-products" element={<SalesProductsPage />} />
 
         <Route path="stores/stock-ledger" element={<StockLedgerPage />} />

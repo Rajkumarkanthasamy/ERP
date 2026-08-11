@@ -18,6 +18,12 @@ import {
   resolveVendorName,
   writeGinAuditLog,
 } from './mssqlGinBridgeService.js';
+import {
+  computeItemDiff,
+  computeLineGst,
+  getVendorTaxTerms,
+  upsertPoReport,
+} from './mssqlVendorTermsService.js';
 
 async function nextPrNumber(transaction) {
   const now = new Date();
@@ -434,12 +440,24 @@ export async function convertPRsToPO({ prNumbers, lineIds, user }) {
     for (const [, vendorLines] of byVendor) {
       const poRef = await nextPoRef(tx);
       poRefs.push(poRef);
+      const vendorCode = vendorLines[0].VendorCode || vendorLines[0].HdrVendor;
+      const terms = await getVendorTaxTerms(vendorCode, tx);
+      let invoiceTotal = 0;
+
       for (const line of vendorLines) {
         const amount = Number(line.TotalCost) || Number(line.Quantity) * Number(line.UnitCost);
+        const gst = computeLineGst(amount, {
+          igst: terms.igst,
+          cgst: terms.cgst,
+          sgst: terms.sgst,
+        });
+        const diff = await computeItemDiff(tx, line.ItemCode, line.UnitCost);
+        invoiceTotal += amount + gst.igstAmount + gst.cgstAmount + gst.sgstAmount;
+
         const ins = new sql.Request(tx);
         ins.input('DBOMNo', sql.NVarChar, poRef);
         ins.input('ProjectCode', sql.NVarChar, line.ProjectCode || line.HdrProject);
-        ins.input('VendorCode', sql.NVarChar, line.VendorCode || line.HdrVendor);
+        ins.input('VendorCode', sql.NVarChar, vendorCode);
         ins.input('PreparedBy', sql.NVarChar, name);
         ins.input('ItemCode', sql.NVarChar, line.ItemCode);
         ins.input('UOM', sql.NVarChar, line.UOM || 'Nos');
@@ -449,15 +467,29 @@ export async function convertPRsToPO({ prNumbers, lineIds, user }) {
         ins.input('RemainingQty', sql.Float, line.Quantity);
         ins.input('Remarks', sql.NVarChar, `From PR ${line.PRNumber}`);
         ins.input('POPreparedDate', sql.NVarChar, today);
-        ins.input('Currency', sql.NVarChar, 'INR');
-        ins.input('FXRate', sql.Float, 1);
+        ins.input('Currency', sql.NVarChar, terms.currency || 'INR');
+        ins.input('FXRate', sql.Float, terms.fxRate || 1);
+        ins.input('IGSTRate', sql.Float, gst.igstRate);
+        ins.input('IGSTAmount', sql.Float, gst.igstAmount);
+        ins.input('CGSTRate', sql.Float, gst.cgstRate);
+        ins.input('CGSTAmount', sql.Float, gst.cgstAmount);
+        ins.input('SGSTRate', sql.Float, gst.sgstRate);
+        ins.input('SGSTAmount', sql.Float, gst.sgstAmount);
+        ins.input('StandardCost', sql.Float, diff.standardCost);
+        ins.input('DiffinPer', sql.Float, diff.diffInPer);
+        ins.input('DiffinRs', sql.Float, diff.diffInRs);
+        ins.input('LatestPurchasePrice', sql.Float, diff.latestPurchasePrice);
         await ins.query(`
           INSERT INTO PurchaseOrder
             (DBOMNo, ProjectCode, VendorCode, PreparedBy, ItemCode, UOM, RequariedQty,
-             UnitPrice, Amount, RemainingQty, Remarks, POPreparedDate, POApproved, Currency, FXRate)
+             UnitPrice, Amount, RemainingQty, Remarks, POPreparedDate, POApproved, Currency, FXRate,
+             IGSTRate, IGSTAmount, CGSTRate, CGSTAmount, SGSTRate, SGSTAmount,
+             StandardCost, DiffinPer, DiffinRs, LatestPurchasePrice)
           VALUES
             (@DBOMNo, @ProjectCode, @VendorCode, @PreparedBy, @ItemCode, @UOM, @RequariedQty,
-             @UnitPrice, @Amount, @RemainingQty, @Remarks, @POPreparedDate, 0, @Currency, @FXRate)
+             @UnitPrice, @Amount, @RemainingQty, @Remarks, @POPreparedDate, 0, @Currency, @FXRate,
+             @IGSTRate, @IGSTAmount, @CGSTRate, @CGSTAmount, @SGSTRate, @SGSTAmount,
+             @StandardCost, @DiffinPer, @DiffinRs, @LatestPurchasePrice)
         `);
 
         const upd = new sql.Request(tx);
@@ -469,6 +501,8 @@ export async function convertPRsToPO({ prNumbers, lineIds, user }) {
           WHERE DetailID = @DetailID
         `);
       }
+
+      await upsertPoReport(tx, { poRef, terms, invoiceTotal });
 
       for (const prNumber of new Set(vendorLines.map((l) => l.PRNumber))) {
         const st = new sql.Request(tx);

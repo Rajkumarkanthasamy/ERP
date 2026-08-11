@@ -1,69 +1,166 @@
-import { useEffect, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
-import { Box, Button, Grid, Paper, Stack, Typography } from '@mui/material';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Box,
+  Button,
+  MenuItem,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+  Chip,
+} from '@mui/material';
 import PageHeader from '../components/PageHeader';
 import LoadingBlock from '../components/LoadingBlock';
+import EmptyState from '../components/EmptyState';
 import { apiGet } from '../api/client';
-import { formatINR } from '../utils/format';
-
-const REPORT_LINKS = [
-  { to: '/procurement/po-status', label: 'PO Status' },
-  { to: '/procurement/price-variance', label: 'Price Variance' },
-  { to: '/stores/stock-ledger', label: 'Stock Ledger' },
-  { to: '/quality/nc', label: 'NC Register' },
-  { to: '/sales/enquiries', label: 'Enquiry Register' },
-  { to: '/timesheets', label: 'Timesheet' },
-];
+import { useSnackbar } from '../components/SnackbarProvider';
 
 export default function ReportsPage() {
-  const [metrics, setMetrics] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { error } = useSnackbar();
+  const [catalog, setCatalog] = useState([]);
+  const [category, setCategory] = useState('All');
+  const [selectedId, setSelectedId] = useState('');
+  const [q, setQ] = useState('');
+  const [result, setResult] = useState(null);
+  const [loadingCatalog, setLoadingCatalog] = useState(true);
+  const [loadingRun, setLoadingRun] = useState(false);
 
   useEffect(() => {
-    apiGet('/dashboard')
-      .then((d) => setMetrics(d?.metrics || []))
-      .catch(() => setMetrics([]))
-      .finally(() => setLoading(false));
-  }, []);
+    apiGet('/reports')
+      .then((data) => setCatalog(Array.isArray(data) ? data : []))
+      .catch((err) => {
+        error(err.message);
+        setCatalog([]);
+      })
+      .finally(() => setLoadingCatalog(false));
+  }, [error]);
+
+  const categories = useMemo(
+    () => ['All', ...Array.from(new Set(catalog.map((r) => r.category))).sort()],
+    [catalog]
+  );
+
+  const filtered = useMemo(
+    () => catalog.filter((r) => category === 'All' || r.category === category),
+    [catalog, category]
+  );
+
+  const run = useCallback(async () => {
+    if (!selectedId) return;
+    setLoadingRun(true);
+    setResult(null);
+    try {
+      const data = await apiGet(`/reports/${encodeURIComponent(selectedId)}`, { q });
+      setResult(data);
+    } catch (err) {
+      error(err.message);
+      setResult(null);
+    } finally {
+      setLoadingRun(false);
+    }
+  }, [selectedId, q, error]);
+
+  const columns = useMemo(() => {
+    const first = result?.rows?.[0];
+    return first ? Object.keys(first) : [];
+  }, [result]);
 
   return (
     <Box>
       <PageHeader
-        title="Reports Summary"
-        subtitle="Operational KPIs and shortcuts into detailed registers."
+        title="ERP Reports"
+        subtitle="Legacy report catalog with live SQL adapters for mapped reports."
         crumbs={[{ label: 'Home', to: '/' }, { label: 'Reports' }]}
       />
-      {loading ? (
+      {loadingCatalog ? (
         <LoadingBlock />
       ) : (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          {metrics.map((m, idx) => (
-            <Grid key={m.metric} size={{ xs: 12, sm: 6, md: 3 }}>
-              <Paper className="metric-pop" sx={{ p: 2, animationDelay: `${idx * 50}ms` }}>
-                <Typography variant="caption" color="text.secondary" fontWeight={700}>
-                  {m.metric}
-                </Typography>
-                <Typography variant="h4" sx={{ fontFamily: 'var(--font-serif)' }}>
-                  {m.count}
-                </Typography>
-                <Typography color="text.secondary">{formatINR(m.amount)}</Typography>
-              </Paper>
-            </Grid>
-          ))}
-        </Grid>
-      )}
-      <Paper sx={{ p: 2.5 }}>
-        <Typography variant="h6" sx={{ mb: 1.5 }}>
-          Report shortcuts
-        </Typography>
-        <Stack direction="row" flexWrap="wrap" useFlexGap spacing={1}>
-          {REPORT_LINKS.map((l) => (
-            <Button key={l.to} component={RouterLink} to={l.to} variant="outlined">
-              {l.label}
+        <Paper sx={{ p: 2, mb: 2 }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+            <TextField
+              select
+              size="small"
+              label="Category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              sx={{ minWidth: 160 }}
+            >
+              {categories.map((c) => (
+                <MenuItem key={c} value={c}>
+                  {c}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              size="small"
+              label="Report"
+              value={selectedId}
+              onChange={(e) => setSelectedId(e.target.value)}
+              sx={{ flex: 1, minWidth: 240 }}
+            >
+              {filtered.map((r) => (
+                <MenuItem key={r.id} value={r.id}>
+                  {r.name} ({r.status})
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField size="small" label="Filter" value={q} onChange={(e) => setQ(e.target.value)} sx={{ minWidth: 160 }} />
+            <Button variant="contained" onClick={run} disabled={!selectedId || loadingRun}>
+              Run
             </Button>
-          ))}
-        </Stack>
-      </Paper>
+          </Stack>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+            {catalog.filter((r) => r.status === 'live').length} of {catalog.length} reports mapped to live SQL.
+            Unmapped reports return 501 until their queries are ported.
+          </Typography>
+        </Paper>
+      )}
+
+      {loadingRun ? (
+        <LoadingBlock />
+      ) : result ? (
+        <Box>
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+            <Typography variant="h6">{result.report?.name}</Typography>
+            <Chip size="small" label={`${result.rowCount} rows`} />
+          </Stack>
+          {result.rows?.length ? (
+            <TableContainer component={Paper} sx={{ maxHeight: 520 }}>
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    {columns.map((col) => (
+                      <TableCell key={col}>{col}</TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {result.rows.map((row, idx) => (
+                    <TableRow key={idx}>
+                      {columns.map((col) => (
+                        <TableCell key={col}>{row[col] == null ? '—' : String(row[col])}</TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          ) : (
+            <EmptyState title="No rows" />
+          )}
+        </Box>
+      ) : (
+        !loadingCatalog && (
+          <EmptyState title="Select a report" description="Choose a mapped report and click Run." />
+        )
+      )}
     </Box>
   );
 }

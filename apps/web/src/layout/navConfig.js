@@ -60,6 +60,8 @@ export const navSections = [
       { label: 'Items', path: '/masters/items', permission: 'partMaster' },
       { label: 'Assets', path: '/masters/assets', permission: 'assetMaster' },
       { label: 'Standard Cost', path: '/masters/standard-cost', permission: 'standardCostUpdate' },
+      { label: 'Target Cost', path: '/masters/target-cost', permission: 'standardCostUpdate' },
+      { label: 'Additional Masters', path: '/masters/additional', permission: ['additionalMaster', 'purchaseOrder', 'pegRate'] },
       { label: 'Sales Product Master', path: '/masters/sales-products', permission: 'salesProduct' },
     ],
   },

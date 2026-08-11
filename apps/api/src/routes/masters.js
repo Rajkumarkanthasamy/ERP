@@ -54,7 +54,7 @@ router.put('/vendors/:code', authRequired, vendorAccess, async (req, res) => {
 
 router.get('/projects', authRequired, projectAccess, async (req, res) => {
   try {
-    if (isMssqlMode()) return res.json(await legacy.listProjects(req.query.q));
+    if (isMssqlMode()) return res.json(await mssqlMasters.listProjects(req.query.q));
     return res.json(masterService.listProjects(req.query.q));
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -64,7 +64,7 @@ router.get('/projects', authRequired, projectAccess, async (req, res) => {
 router.get('/projects/:code', authRequired, projectAccess, async (req, res) => {
   try {
     const project = isMssqlMode()
-      ? (await legacy.listProjects(req.params.code)).find(
+      ? (await mssqlMasters.listProjects(req.params.code)).find(
           (item) => item.projectCode === req.params.code
         )
       : masterService.getProject(req.params.code);
@@ -75,29 +75,103 @@ router.get('/projects/:code', authRequired, projectAccess, async (req, res) => {
   }
 });
 
-router.post('/projects', authRequired, projectAccess, requireSqliteMode, (req, res) => {
+router.post('/projects', authRequired, projectAccess, async (req, res) => {
   try {
+    if (isMssqlMode()) {
+      return res.status(201).json(await mssqlMasters.upsertProject(req.body, req.user));
+    }
     res.status(201).json(masterService.upsertProject(req.body, req.user));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.put('/projects/:code', authRequired, projectAccess, requireSqliteMode, (req, res) => {
+router.put('/projects/:code', authRequired, projectAccess, async (req, res) => {
   try {
-    res.json(masterService.upsertProject({ ...req.body, projectCode: req.params.code }, req.user));
+    const payload = { ...req.body, projectCode: req.params.code };
+    if (isMssqlMode()) return res.json(await mssqlMasters.upsertProject(payload, req.user));
+    res.json(masterService.upsertProject(payload, req.user));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.post('/projects/:code/approve', authRequired, projectAccess, requirePermission('canApprovePR'), requireSqliteMode, (req, res) => {
-  try {
-    res.json(masterService.approveProject(req.params.code, { ...req.body, user: req.user }));
-  } catch (err) {
-    res.status(400).json({ error: err.message });
+router.post(
+  '/projects/:code/approve',
+  authRequired,
+  projectAccess,
+  requirePermission('canApprovePR'),
+  async (req, res) => {
+    try {
+      const payload = { ...req.body, user: req.user };
+      if (isMssqlMode()) return res.json(await mssqlMasters.approveProject(req.params.code, payload));
+      res.json(masterService.approveProject(req.params.code, payload));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
   }
-});
+);
+
+router.get(
+  '/target-cost',
+  authRequired,
+  requireAnyLegacyPermission('standardCostUpdate', 'partMaster'),
+  async (req, res) => {
+    try {
+      if (isMssqlMode()) return res.json(await mssqlMasters.listTargetCostHistory(req.query.q));
+      return res.status(501).json({
+        code: 'MSSQL_WORKFLOW_NOT_MAPPED',
+        error: 'Target cost history requires SQL Server mode',
+      });
+    } catch (err) {
+      if (/Invalid object name/i.test(err.message)) {
+        return res.status(501).json({
+          code: 'MSSQL_WORKFLOW_NOT_MAPPED',
+          error: 'ItemTargetCostHistory table is missing in ERP_Database',
+        });
+      }
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+router.post(
+  '/target-cost',
+  authRequired,
+  requireAnyLegacyPermission('standardCostUpdate', 'partMaster'),
+  async (req, res) => {
+    try {
+      if (!isMssqlMode()) {
+        return res.status(501).json({
+          code: 'MSSQL_WORKFLOW_NOT_MAPPED',
+          error: 'Target cost requires SQL Server mode',
+        });
+      }
+      res.status(201).json(await mssqlMasters.proposeTargetCost(req.body, req.user));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+router.post(
+  '/target-cost/:id/decide',
+  authRequired,
+  requireAnyLegacyPermission('generalManager', 'standardCostUpdate'),
+  async (req, res) => {
+    try {
+      if (!isMssqlMode()) {
+        return res.status(501).json({
+          code: 'MSSQL_WORKFLOW_NOT_MAPPED',
+          error: 'Target cost approval requires SQL Server mode',
+        });
+      }
+      res.json(await mssqlMasters.decideTargetCost(req.params.id, { ...req.body, user: req.user }));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  }
+);
 
 router.get('/items', authRequired, itemAccess, async (req, res) => {
   try {

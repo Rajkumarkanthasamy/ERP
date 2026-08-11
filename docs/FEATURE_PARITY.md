@@ -24,9 +24,12 @@ simplified SQLite demo CRUD screens.
 
 In SQL Server mode, authentication, dashboard, PR, PO, GRN (including legacy
 GIN stock posting), gate inward/outward, city/customer/vendor/item master
-writes, and project reads currently have explicit MSSQL code paths. Other route
-groups now return `501 MSSQL_WORKFLOW_NOT_MAPPED`; they cannot silently read or
-write the SQLite demo database while live ERP mode is selected.
+writes, project create/update/approve, target-cost history, additional masters
+(tax/payment/delivery/currency), Phase3 procurement comments/attachments,
+stock ledger + item issue/return FIFO, and a mapped subset of ERP reports
+currently have explicit MSSQL code paths. Other route groups return
+`501 MSSQL_WORKFLOW_NOT_MAPPED`; they cannot silently read or write the SQLite
+demo database while live ERP mode is selected.
 
 ### Status labels
 
@@ -50,20 +53,20 @@ write the SQLite demo database while live ERP mode is selected.
 | Vendor master | Full address, tax, banking, MSME, currency, approval and search | Partial | Live create/update on `Vendors` for core address/contact/GST; banking, MSME, currency and `VendorDetails` remain |
 | Item master | Item create/update, stock fields, UOM, storage, drawing, HSN/SAC, costs and history | Partial | Live create/update on `ItemMaster`; `standardCost` maps to `UnitCost` with `ItemStdCostHistory`; separate `fixedCost` field; full storage/approval fields remain |
 | Item-code request/approval | Propose item code, hold/reject/approve, then create the approved `ItemMaster` row | Demo | SQLite workflow exists; live `ItemCodeCreation` mapping and the legacy creator/approval-authority rules remain |
-| Standard/target cost | Cost update with audit histories and restricted access | Partial | Live standard-cost updates write `UnitCost` + `ItemStdCostHistory` (matching WinForms); target-cost history/GM approve remain |
+| Standard/target cost | Cost update with audit histories and restricted access | Partial | Live standard-cost updates write `UnitCost` + `ItemStdCostHistory`; live target-cost propose/GM-approve writes `ItemTargetCostHistory` and `ItemMaster.TargetCost` |
 | Product master/BOM | Product tree and BOM maintenance | Demo | Live product/BOM tree, versioning and approvals |
 | Fixed assets | Asset register, cost centre, barcode/verification and documents | Demo | Full `AssetMaster`, `AssetCostCentre`, `AssetDocumentInfo`, upload/verification |
-| Procurement PR | PR creation, approval/reject/hold/release, clubbing and PR-to-PO prototype | Partial | Core web request/action contracts are corrected; live SQL validation, exact role rules, BOM-origin traceability and complete validation remain |
-| Purchase order | PO/WO creation, pricing/tax/terms, approval chain, finalization, update request, cancel/close, repeat order, vendor confirmation, tracking, reminders | Partial | Cancel/close with mandatory final comment, PO Track send gate, track remarks/OADate, and GRN open-line sent/not-cancelled guards are live; update-request, vendor confirm queue, reminders, GST/terms-on-convert and RepeatOrder (stub) remain |
+| Procurement PR | PR creation, approval/reject/hold/release, clubbing and PR-to-PO prototype | Partial | Core web request/action contracts are corrected; collab comments on PR approval; live SQL validation, exact role rules, BOM-origin traceability and complete validation remain |
+| Purchase order | PO/WO creation, pricing/tax/terms, approval chain, finalization, update request, cancel/close, repeat order, vendor confirmation, tracking, reminders | Partial | Cancel/close, track, GST/terms-on-convert from `VendorDetails`, `DiffinPer`/`DiffinRs`, `POReport` upsert, and collab comments on PO status are live; update-request, vendor confirm queue, reminders and RepeatOrder remain |
 | Work order | Job-work order generation, approval, costs, issue/return and tracking | Demo | Live `WorkOrder`, `WOOtherCost`, `WOApproveList`, job issue/movement |
-| Currency/terms | Currency rate, GST/tax, payment, delivery, packing/forwarding and general terms | Missing | All related master screens and PO integration |
+| Currency/terms | Currency rate, GST/tax, payment, delivery, packing/forwarding and general terms | Partial | Live Additional Masters for tax/CST/others-tax/discount/excise/payment/delivery plus PEG/currency rates and inco terms; packing/forwarding UI remains |
 | GIN/receipt | PO/WO receipt, other-item GIN, inspection request, document scanning, tax, service GIN | Partial | Live PO GRN posts `ProcurementGRN` plus `JobMovement`/`Receipt`/`ERPInventoryLogs`/`ItemMaster` qty in one transaction; WO/other-item GIN, inspection, WAR and attachment/scanning remain |
 | Reverse GIN | Reverse receipt and inventory effects | Missing | `RiverseGIN`/`ERPReverseInventoryLogs` transaction |
-| Item issue/return | Project/job issue, return, stock validation and FIFO logs | Demo | Live atomic inventory transactions and project/job rules |
-| Inventory | Ledgers, cycle count, location update/history, stock adjustment and grading; the legacy dashboard entry is a dead stub | Demo | Live inventory calculations, audit logs, cycle count and location workflows |
+| Item issue/return | Project/job issue, return, stock validation and FIFO logs | Partial | Live FIFO issue/return against `ERPInventoryLogs` + `ItemMaster.AvailableQty` with `ERPTransactionLog`; full project/job UI rules and cycle count remain |
+| Inventory | Ledgers, cycle count, location update/history, stock adjustment and grading; the legacy dashboard entry is a dead stub | Partial | Live stock ledger from `ItemMaster`; adjust/production/cycle-count/location still demo or unmapped |
 | Delivery challan/DC | DC generation and related project/receipt data | Demo | Legacy document numbering, line rules, printing/export and SQL mapping |
 | Gate entry | Inward, outward, manual inward and report | Partial | Live multi-line `SecurityInward`/`SecurityOutward` reads and transactional writes are mapped; external BMS/DC lookup, historical manual-entry identification and report export remain |
-| Project create/approve | Full project/customer/product/order metadata and approvals | Partial | Live `ProjectMaster` list/detail reads support procurement; writes, role approvals and the full field set remain |
+| Project create/approve | Full project/customer/product/order metadata and approvals | Partial | Live `ProjectMaster` list/create/update/approve; full field set and product metadata remain |
 | Project update | Warranty, short shipment, status, installation, shipment date and invoice updates | Partial | Only simplified project editing/installation view exists |
 | Project BOM | Create/import, versions, lock/unlock, change logs, approval and progress | Demo | `ProjectBOM`, `MachineBOM`, lock/log tables and full workflows |
 | Project transfer | Transfer request, approval and inventory/project transfer | Missing | `ProjectTransferInfo` and stock transfer transaction |
@@ -81,7 +84,7 @@ write the SQLite demo database while live ERP mode is selected.
 | Service quote | Contract values, PI details/items and multiple quote variants | Missing | Service quote and pro-forma invoice workflows |
 | Test-lab quote | Test quote and item detail workflow | Missing | Test-lab quote generation/view |
 | Spare-parts quote | Spare-parts quotation | Missing | `SparePartQuationDetails` workflow |
-| PEG rate | PEG/currency rate maintenance | Missing | `PegRate` UI/API |
+| PEG rate | PEG/currency rate maintenance | Partial | Live list/create via Additional Masters currency-rates (`POCurrencyRate`); full PEG UI fields remain |
 | Service management | Service order entry and related variants; the main-menu service-call manager is dead/stubbed | Demo | Live service-order mappings and complete implemented variants |
 | Quality NC | Raise/view NC, user detail and close/corrective action | Demo | Live `NCForm`, legacy fields, authorization and state transitions |
 | Escalations | Escalation levels, reminders, reviews and views | Demo | Live escalation tables, reminders and review meetings |
@@ -93,10 +96,10 @@ write the SQLite demo database while live ERP mode is selected.
 | Machine utilization | Machine master/utilization entry and view | Missing | `TestLabMachinesMaster`/`TestLabMachinesUtilization` |
 | User management | Create/update users and all permission flags | Partial | Current list is SQLite-oriented; live CRUD and complete permissions absent |
 | Change password | Verify current password and update encrypted password | Partial | Exact policy and AES-compatible update are implemented; live SQL validation is pending network access |
-| ERP reports | 57 report types with date/project/vendor/item filters | Missing | Current page is only KPI shortcuts |
+| ERP reports | 57 report types with date/project/vendor/item filters | Partial | Catalog of all 57 choices is exposed; a mapped subset runs live SQL queries; remaining reports return 501 until ported |
 | Export/print | Excel/CSV, PDF, QR/barcode, GIN/PO/packing labels and report printing | Missing | Server/browser-safe exporters and templates |
 | Email/notifications | Outlook-based quote, PO, credential, closure and reminder mail | Missing | Configurable SMTP/provider integration, templates and audit |
-| Documents | File scanning, project/asset attachments and network paths | Partial | Procurement attachment metadata exists; broader storage/download/versioning is absent |
+| Documents | File scanning, project/asset attachments and network paths | Partial | Phase3 `ProcurementComment`/`ProcurementAttachment` live for PR/PO; broader storage/download/versioning is absent |
 | Audit | ERP transaction log, inventory logs, BOM lock/change logs, cost histories | Partial | Web activity log covers only selected SQLite operations |
 
 ## Legacy report inventory
@@ -113,8 +116,9 @@ The main report form exposes 57 distinct report choices. They include:
 - project transfer/status/installation tracking
 - machine/man-hour project cost details
 
-The web `ReportsPage` currently links to six existing list pages; it does not
-implement the legacy report queries or export/print behavior.
+The web `ReportsPage` now lists all 57 legacy report choices and runs the
+mapped live SQL adapters. Unmapped reports return `501 MSSQL_WORKFLOW_NOT_MAPPED`.
+Excel/PDF/label export remains missing.
 
 ## Critical correctness findings and current corrections
 
@@ -172,6 +176,18 @@ implement the legacy report queries or export/print behavior.
     `ERPTransactionLog`, and stores `ProcurementGRN.LegacyGinNumber`. Invoice
     numbers are required and vendor+invoice duplicates are rejected. Full
     domestic WAR, WO/other-item GIN and reverse GIN remain.
+17. PO convert now loads `VendorDetails` GST/payment/delivery/inco terms, writes
+    line GST amounts, `StandardCost`/`DiffinPer`/`DiffinRs`/`LatestPurchasePrice`,
+    and upserts `POReport`.
+18. Additional Masters (tax/CST/others-tax/discount/excise/payment/delivery),
+    PEG/currency rates, project create/update/approve, and target-cost
+    propose/GM-approve are live against matching SQL Server tables.
+19. Phase3 `ProcurementComment`/`ProcurementAttachment` are dual-mode; PR
+    Approval and PO Status expose a collaboration comments panel.
+20. Stock ledger reads `ItemMaster`; item issue/return post FIFO updates to
+    `ERPInventoryLogs`, adjust `AvailableQty`, and write `ERPTransactionLog`.
+21. `/api/reports` exposes the 57-report catalog with live runners for the
+    mapped subset (stock, PO/PR registers, masters, ERP log, etc.).
 
 ## Definition of full parity
 

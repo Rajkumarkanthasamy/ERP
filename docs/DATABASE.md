@@ -109,10 +109,19 @@ The mapped web subset currently supports these **reads and writes**:
     `ERPInventoryLogs` / `ItemMaster` with `ERPTransactionLog` audit
 12. **Gate Inward / Outward / Manual Inward** → `SecurityInward` /
     `SecurityOutward`
-13. Vendors, Items and Projects (read)
+13. Vendors, Items and Projects (read/write + project approve)
 14. **City / Customer / Vendor / Item masters** (create and update) →
     `CityMaster` + `StateMaster`, `CustomerMaster`, `Vendors`, `ItemMaster`
     with `ItemStdCostHistory` on standard/`UnitCost` changes
+15. **Target cost** propose/GM-approve → `ItemTargetCostHistory` /
+    `ItemMaster.TargetCost`
+16. **Additional Masters** tax/payment/delivery/currency → matching term
+    tables + `POCurrencyRate`
+17. **PO convert GST/terms** from `VendorDetails` + `DiffinPer` / `POReport`
+18. **Collab** comments/attachments → Phase3 `ProcurementComment` /
+    `ProcurementAttachment`
+19. **Stock ledger + Issue/Return** → `ItemMaster` / FIFO `ERPInventoryLogs`
+20. **ERP reports catalog** (57 choices; mapped subset runs live SQL)
 
 Live GRN requires an invoice number, allocates `ITWGIN{n}` via `JobMovement`,
 stores `ProcurementGRN.LegacyGinNumber`, and updates on-hand qty without the

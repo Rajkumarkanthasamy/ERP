@@ -24,6 +24,7 @@ import StatusChip from '../../components/StatusChip';
 import { apiGet, apiPost } from '../../api/client';
 import { formatDate, formatINR } from '../../utils/format';
 import { useSnackbar } from '../../components/SnackbarProvider';
+import CollabPanel from '../../components/CollabPanel';
 
 const ACTIONS_BY_STATUS = {
   Pending: [
@@ -46,6 +47,7 @@ export default function PrApprovalPage() {
   const [dialog, setDialog] = useState(null);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+  const [selectedPr, setSelectedPr] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -134,7 +136,13 @@ export default function PrApprovalPage() {
             </TableHead>
             <TableBody>
               {rows.map((pr) => (
-                <TableRow key={pr.prNumber} hover>
+                <TableRow
+                  key={pr.prNumber}
+                  hover
+                  selected={selectedPr === pr.prNumber}
+                  onClick={() => setSelectedPr(pr.prNumber)}
+                  sx={{ cursor: 'pointer' }}
+                >
                   <TableCell>{pr.prNumber}</TableCell>
                   <TableCell>{pr.projectCode}</TableCell>
                   <TableCell>{pr.vendorName || pr.vendorCode}</TableCell>
@@ -144,7 +152,7 @@ export default function PrApprovalPage() {
                   <TableCell>
                     <StatusChip status={pr.status} />
                   </TableCell>
-                  <TableCell align="right">
+                  <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                     <Stack direction="row" spacing={0.5} justifyContent="flex-end">
                       {(ACTIONS_BY_STATUS[pr.status] || []).map((action) => (
                         <Button
@@ -164,6 +172,10 @@ export default function PrApprovalPage() {
           </Table>
         </TableContainer>
       )}
+
+      <Paper sx={{ p: 2.5, mt: 2 }}>
+        <CollabPanel entityType="PR" entityRef={selectedPr} title="PR collaboration" />
+      </Paper>
 
       <Dialog open={Boolean(dialog)} onClose={() => setDialog(null)} fullWidth maxWidth="xs">
         <DialogTitle>

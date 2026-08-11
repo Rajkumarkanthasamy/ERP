@@ -672,3 +672,226 @@ export async function upsertItem(payload, user) {
 
   return getItem(itemCode);
 }
+
+export async function listProjects(q) {
+  const where = [];
+  const params = {};
+  if (q) {
+    where.push(
+      `(ProjectCode LIKE @q OR ISNULL(ProjectDescription, '') LIKE @q OR ISNULL(Customer, '') LIKE @q)`
+    );
+    params.q = `%${q}%`;
+  }
+  const result = await mssqlQuery(
+    `
+    SELECT TOP 1000
+      Id AS id,
+      ProjectCode AS projectCode,
+      ProjectDescription AS projectName,
+      SystemSubType AS productNo,
+      CustomerCode AS customerCode,
+      Customer AS customerName,
+      Status AS status,
+      ProjectInstallStatus AS installationStatus,
+      ShipmentDate AS shipmentDate,
+      DateCreated AS startDate,
+      Remarks AS remarks,
+      ApprovedBy AS approvedBy,
+      ApprovedDate AS approvedDate,
+      CASE
+        WHEN NULLIF(ApprovedBy, '') IS NULL THEN 'Pending'
+        ELSE 'Approved'
+      END AS approvalStatus
+    FROM ProjectMaster
+    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+    ORDER BY Id DESC
+    `,
+    params
+  );
+  return result.recordset;
+}
+
+export async function upsertProject(payload, user) {
+  const projectCode = trim(payload.projectCode);
+  const projectName = trim(payload.projectName);
+  if (!projectCode || !projectName) throw new Error('projectCode and projectName are required');
+  const byUser = user?.displayName || user?.username || 'web';
+  const existing = await mssqlQuery(
+    `SELECT TOP 1 ProjectCode FROM ProjectMaster WHERE ProjectCode = @projectCode`,
+    { projectCode }
+  );
+  const params = {
+    projectCode,
+    projectName,
+    customer: optionalText(payload.customerName || payload.customer, 255),
+    customerCode: optionalText(payload.customerCode, 55),
+    status: optionalText(payload.status, 255) || 'Active',
+    remarks: optionalText(payload.remarks, 255),
+    installStatus: optionalText(payload.installationStatus, 100),
+    shipmentDate: optionalText(payload.shipmentDate, 40),
+    createdBy: byUser,
+  };
+  if (existing.recordset[0]) {
+    await mssqlQuery(
+      `
+      UPDATE ProjectMaster
+      SET ProjectDescription = @projectName,
+          Customer = @customer,
+          CustomerCode = @customerCode,
+          Status = @status,
+          Remarks = @remarks,
+          ProjectInstallStatus = @installStatus,
+          ShipmentDate = @shipmentDate
+      WHERE ProjectCode = @projectCode
+      `,
+      params
+    );
+  } else {
+    await mssqlQuery(
+      `
+      INSERT INTO ProjectMaster
+        (ProjectCode, ProjectDescription, Customer, CustomerCode, Status, Remarks,
+         CreatedBy, DateCreated, ProjectInstallStatus, ShipmentDate, ShortShipment, ProjectTransfer, ProjectTransfered)
+      VALUES
+        (@projectCode, @projectName, @customer, @customerCode, @status, @remarks,
+         @createdBy, CONVERT(NVARCHAR(30), GETDATE(), 120), @installStatus, @shipmentDate, 0, 0, 0)
+      `,
+      params
+    );
+  }
+  const rows = await listProjects(projectCode);
+  return rows.find((p) => p.projectCode === projectCode) || rows[0];
+}
+
+export async function approveProject(projectCode, { action, user }) {
+  const code = trim(projectCode);
+  if (!code) throw new Error('projectCode is required');
+  if (action !== 'approve' && action !== 'reject') throw new Error('Unknown action');
+  const byUser = user?.displayName || user?.username || 'web';
+  if (action === 'approve') {
+    await mssqlQuery(
+      `
+      UPDATE ProjectMaster
+      SET ApprovedBy = @byUser,
+          ApprovedDate = CONVERT(NVARCHAR(30), GETDATE(), 120),
+          Status = 'Active'
+      WHERE ProjectCode = @code
+      `,
+      { byUser, code }
+    );
+  } else {
+    await mssqlQuery(
+      `
+      UPDATE ProjectMaster
+      SET Status = 'Rejected',
+          Remarks = ISNULL(Remarks, '') + ' | Rejected by ' + @byUser
+      WHERE ProjectCode = @code
+      `,
+      { byUser, code }
+    );
+  }
+  const rows = await listProjects(code);
+  return rows.find((p) => p.projectCode === code) || rows[0];
+}
+
+export async function listTargetCostHistory(q) {
+  const params = {};
+  let where = '1=1';
+  if (q) {
+    where = '(h.ItemCode LIKE @q)';
+    params.q = `%${q}%`;
+  }
+  const result = await mssqlQuery(
+    `
+    SELECT TOP 500
+      h.Id AS id,
+      h.ItemCode AS itemCode,
+      i.ItemDescription AS itemDescription,
+      h.TargetCost AS targetCost,
+      h.UpdateBy AS updatedBy,
+      h.UpdateDate AS updatedAt,
+      h.Remarks AS remarks,
+      h.GMApprove AS gmApproved,
+      h.GMApproveDate AS gmApprovedDate
+    FROM ItemTargetCostHistory h
+    LEFT JOIN ItemMaster i ON i.ItemCode = h.ItemCode
+    WHERE ${where}
+    ORDER BY h.Id DESC
+    `,
+    params
+  );
+  return result.recordset.map((row) => ({
+    ...row,
+    gmApproved: row.gmApproved == null ? null : Boolean(row.gmApproved),
+  }));
+}
+
+export async function proposeTargetCost(payload, user) {
+  const itemCode = trim(payload.itemCode);
+  const targetCost = Number(payload.targetCost);
+  if (!itemCode) throw new Error('itemCode is required');
+  if (!Number.isFinite(targetCost) || targetCost < 0) throw new Error('targetCost must be non-negative');
+  await mssqlQuery(
+    `
+    INSERT INTO ItemTargetCostHistory (ItemCode, TargetCost, UpdateBy, Remarks, UpdateDate)
+    VALUES (@itemCode, @targetCost, @byUser, @remarks, GETDATE())
+    `,
+    {
+      itemCode,
+      targetCost,
+      byUser: String(user?.displayName || user?.username || 'web').slice(0, 50),
+      remarks: optionalText(payload.remarks, 500),
+    }
+  );
+  const rows = await listTargetCostHistory(itemCode);
+  return rows[0];
+}
+
+export async function decideTargetCost(id, { action, user }) {
+  const historyId = Number(id);
+  if (!Number.isFinite(historyId)) throw new Error('Invalid target cost id');
+  if (!['approve', 'reject'].includes(action)) throw new Error('Unknown action');
+  const existing = await mssqlQuery(
+    `SELECT TOP 1 * FROM ItemTargetCostHistory WHERE Id = @id`,
+    { id: historyId }
+  );
+  const row = existing.recordset[0];
+  if (!row) throw new Error('Target cost request not found');
+  if (row.GMApprove != null) throw new Error('Target cost already decided');
+
+  if (action === 'approve') {
+    const pool = await getMssqlPool();
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+    try {
+      const upd = new sql.Request(tx);
+      upd.input('id', sql.Int, historyId);
+      upd.input('byUser', sql.VarChar, String(user?.displayName || user?.username || 'web').slice(0, 50));
+      await upd.query(`
+        UPDATE ItemTargetCostHistory
+        SET GMApprove = 1, GMApproveDate = CAST(GETDATE() AS date)
+        WHERE Id = @id
+      `);
+      const item = new sql.Request(tx);
+      item.input('ItemCode', sql.NVarChar, row.ItemCode);
+      item.input('TargetCost', sql.Float, row.TargetCost);
+      await item.query(`UPDATE ItemMaster SET TargetCost = @TargetCost WHERE ItemCode = @ItemCode`);
+      await tx.commit();
+    } catch (err) {
+      await tx.rollback();
+      throw err;
+    }
+  } else {
+    await mssqlQuery(
+      `
+      UPDATE ItemTargetCostHistory
+      SET GMApprove = 0, GMApproveDate = CAST(GETDATE() AS date),
+          Remarks = ISNULL(Remarks, '') + ' | Rejected'
+      WHERE Id = @id
+      `,
+      { id: historyId }
+    );
+  }
+  const rows = await listTargetCostHistory(row.ItemCode);
+  return rows.find((r) => r.id === historyId) || rows[0];
+}
