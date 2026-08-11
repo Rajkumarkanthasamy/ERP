@@ -24,7 +24,8 @@ simplified SQLite demo CRUD screens.
 
 In SQL Server mode, only authentication, dashboard, PR, PO, GRN, and parts of the
 vendor/item master currently have explicit MSSQL code paths. Other route groups
-still call the SQLite services.
+now return `501 MSSQL_WORKFLOW_NOT_MAPPED`; they cannot silently read or write
+the SQLite demo database while live ERP mode is selected.
 
 ### Status labels
 
@@ -128,12 +129,18 @@ implement the legacy report queries or export/print behavior.
    `ItemMaster` schema.
 5. Current MSSQL PO reads select item/vendor description columns directly from
    `PurchaseOrder`; the read now joins `Vendors` and `ItemMaster`.
-6. Most non-procurement API routes always use SQLite even when
-   `DB_CLIENT=mssql`.
-7. Several generic edit screens construct an update URL using SQLite row IDs
-   while their APIs expect business document numbers.
+6. Most non-procurement API routes previously used SQLite even when
+   `DB_CLIENT=mssql`. A database-mode guard now rejects those unmapped routes
+   explicitly until their SQL Server adapters are implemented.
+7. Generic edit screens previously constructed update URLs using SQLite row IDs
+   while their APIs expected business document numbers. The shared resource
+   page and all editable route configurations now use the correct entity keys.
 8. The former broken change-password URL is now replaced by
    `/api/auth/change-password`.
+9. Simplified demo workflows now validate required fields and expose supported
+   status transitions, but single-line document entry remains below WinForms
+   parity for indents, work orders, quotes, stock documents and delivery
+   challans.
 
 ## Definition of full parity
 
