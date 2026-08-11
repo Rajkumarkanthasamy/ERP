@@ -108,6 +108,9 @@ The mapped web subset currently supports these **reads and writes**:
 12. **Gate Inward / Outward / Manual Inward** → `SecurityInward` /
     `SecurityOutward`
 13. Vendors, Items and Projects (read)
+14. **City / Customer / Vendor / Item masters** (create and update) →
+    `CityMaster` + `StateMaster`, `CustomerMaster`, `Vendors`, `ItemMaster`
+    with `ItemStdCostHistory` on standard-cost changes
 
 The web GRN extension updates PO remaining quantity, but it does not yet perform
 all legacy GIN inventory postings to `Receipt`, `ERPInventoryLogs` and

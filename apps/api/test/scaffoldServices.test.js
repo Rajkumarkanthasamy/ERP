@@ -144,6 +144,56 @@ test('quote amount can be edited without replacing line items', () => {
   assert.equal(updated.totalAmount, 1750);
 });
 
+test('sqlite city, customer, vendor and item masters upsert with shared web fields', () => {
+  const city = masterService.upsertCity({
+    cityName: 'Coimbatore',
+    state: 'Tamil Nadu',
+    country: 'India',
+  });
+  assert.ok(city.cityCode);
+  assert.equal(city.cityName, 'Coimbatore');
+
+  const customer = masterService.upsertCustomer({
+    customerCode: 'CUST-LIVE-1',
+    customerName: 'Acme Customer',
+    city: 'Coimbatore',
+    gstin: '33AAAAA0000A1Z5',
+    phone: '9999999999',
+    address: 'Industrial Estate',
+  });
+  assert.equal(customer.customerCode, 'CUST-LIVE-1');
+  assert.equal(customer.gstin, '33AAAAA0000A1Z5');
+
+  const vendor = masterService.upsertVendor({
+    vendorCode: 'VEN-LIVE-1',
+    vendorName: 'Acme Vendor',
+    city: 'Coimbatore',
+    gstin: '33BBBBB0000B1Z5',
+    phone: '8888888888',
+    address: 'Peelamedu',
+  });
+  assert.equal(vendor.vendorCode, 'VEN-LIVE-1');
+  assert.equal(vendor.city, 'Coimbatore');
+
+  const item = masterService.upsertItem({
+    itemCode: 'ITM-LIVE-1',
+    itemDescription: 'Fastener',
+    uom: 'NOS',
+    standardCost: 12.5,
+    hsnCode: '7318',
+  });
+  assert.equal(item.itemCode, 'ITM-LIVE-1');
+  assert.equal(item.standardCost, 12.5);
+
+  const updatedItem = masterService.upsertItem({
+    itemCode: 'ITM-LIVE-1',
+    itemDescription: 'Fastener M6',
+    standardCost: 14,
+  });
+  assert.equal(updatedItem.itemDescription, 'Fastener M6');
+  assert.equal(updatedItem.standardCost, 14);
+});
+
 test('unmapped routes reject SQL Server mode instead of opening SQLite', () => {
   process.env.DB_CLIENT = 'mssql';
   let status;

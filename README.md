@@ -57,10 +57,10 @@ npm run dev -w apps/api
 
 Login with existing ERP `Login` table users (same as C#).
 
-The newer procurement flow (PR → Approve → Club → PO → Approve → GRN) has
-explicit SQL Server adapters. The original WinForms PO/WO, inventory, project,
-sales, reporting, permission, print, document and email features are still being
-migrated.
+The newer procurement flow (PR → Approve → Club → PO → Approve → GRN), gate
+entry, and city/customer/vendor/item master CRUD have explicit SQL Server
+adapters. The original WinForms PO/WO, inventory, project, sales, reporting,
+permission, print, document and email features are still being migrated.
 
 See [docs/FEATURE_PARITY.md](docs/FEATURE_PARITY.md) for the evidence-based
 screen/workflow comparison and remaining gaps. Procurement process details are

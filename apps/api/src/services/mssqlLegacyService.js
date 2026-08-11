@@ -339,72 +339,7 @@ export async function listProjects(q) {
   return result.recordset;
 }
 
-export async function listVendors() {
-  const result = await mssqlQuery(
-    `
-    SELECT TOP 500
-      v.id,
-      v.VendorCode AS vendorCode,
-      v.VendorName AS vendorName,
-      v.District AS city,
-      v.GSTCode AS gstin,
-      CONCAT(
-        ISNULL(v.Address1, ''),
-        CASE WHEN NULLIF(v.Address2, '') IS NULL THEN '' ELSE ', ' + v.Address2 END,
-        CASE WHEN NULLIF(v.Address3, '') IS NULL THEN '' ELSE ', ' + v.Address3 END
-      ) AS address,
-      v.ContactPerson AS contactPerson,
-      COALESCE(NULLIF(v.MobileNo, ''), v.PhoneNo) AS phone,
-      v.EmailAddress AS email,
-      CASE WHEN ISNULL(v.Status, 'Active') = 'Inactive' THEN 0 ELSE 1 END AS active,
-      ISNULL(v.Approved, 0) AS approved
-    FROM Vendors v
-    ORDER BY v.VendorName
-    `
-  );
-  return result.recordset.map((row) => ({
-    ...row,
-    active: Boolean(row.active),
-    approved: Boolean(row.approved),
-  }));
-}
-
-export async function listItems(q) {
-  const params = {};
-  let where = '1=1';
-  if (q) {
-    where = '(ItemCode LIKE @q OR ISNULL(ItemDescription,\'\') LIKE @q)';
-    params.q = `%${q}%`;
-  }
-  try {
-    const result = await mssqlQuery(
-      `
-      SELECT TOP 500
-        ItemCode AS itemCode,
-        ItemDescription AS itemDescription,
-        Units AS uom,
-        CAST(NULL AS NVARCHAR(255)) AS make,
-        DrawingNo AS drawingNo,
-        HSNSACCode AS hsnCode,
-        FixedCost AS standardCost,
-        UnitCost AS latestPurchasePrice,
-        Type AS category,
-        TargetCost AS targetCost,
-        CASE WHEN ISNULL(Status, 'Active') = 'Inactive' THEN 0 ELSE 1 END AS active
-      FROM ItemMaster
-      WHERE ${where}
-      ORDER BY ItemCode
-      `,
-      params
-    );
-    return result.recordset;
-  } catch {
-    const result = await mssqlQuery(
-      `SELECT TOP 200 ItemCode AS itemCode, ItemDescription AS itemDescription FROM ItemMaster ORDER BY ItemCode`
-    );
-    return result.recordset;
-  }
-}
+export { listVendors, listItems } from './mssqlMasterService.js';
 
 export async function dashboardSummary() {
   const pending = await mssqlQuery(

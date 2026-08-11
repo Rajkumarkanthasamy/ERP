@@ -7,6 +7,7 @@ import {
 import { isMssqlMode } from '../db/mssql.js';
 import { requireSqliteMode } from '../middleware/dbMode.js';
 import * as masterService from '../services/masterService.js';
+import * as mssqlMasters from '../services/mssqlMasterService.js';
 import * as legacy from '../services/mssqlLegacyService.js';
 import { listLegacyUsers } from '../services/mssqlAuthService.js';
 
@@ -23,24 +24,29 @@ const userAccess = requireAnyLegacyPermission('addUser');
 
 router.get('/vendors', authRequired, vendorAccess, async (req, res) => {
   try {
-    if (isMssqlMode()) return res.json(await legacy.listVendors());
+    if (isMssqlMode()) return res.json(await mssqlMasters.listVendors(req.query.q));
     res.json(masterService.listVendors(req.query.q));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-router.post('/vendors', authRequired, vendorAccess, requireSqliteMode, (req, res) => {
+router.post('/vendors', authRequired, vendorAccess, async (req, res) => {
   try {
+    if (isMssqlMode()) {
+      return res.status(201).json(await mssqlMasters.upsertVendor(req.body, req.user));
+    }
     res.status(201).json(masterService.upsertVendor(req.body));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.put('/vendors/:code', authRequired, vendorAccess, requireSqliteMode, (req, res) => {
+router.put('/vendors/:code', authRequired, vendorAccess, async (req, res) => {
   try {
-    res.json(masterService.upsertVendor({ ...req.body, vendorCode: req.params.code }));
+    const payload = { ...req.body, vendorCode: req.params.code };
+    if (isMssqlMode()) return res.json(await mssqlMasters.upsertVendor(payload, req.user));
+    res.json(masterService.upsertVendor(payload));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -95,64 +101,98 @@ router.post('/projects/:code/approve', authRequired, projectAccess, requirePermi
 
 router.get('/items', authRequired, itemAccess, async (req, res) => {
   try {
-    if (isMssqlMode()) return res.json(await legacy.listItems(req.query.q));
+    if (isMssqlMode()) return res.json(await mssqlMasters.listItems(req.query.q));
     res.json(masterService.listItems(req.query.q));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-router.post('/items', authRequired, itemAccess, requireSqliteMode, (req, res) => {
+router.post('/items', authRequired, itemAccess, async (req, res) => {
   try {
+    if (isMssqlMode()) {
+      return res.status(201).json(await mssqlMasters.upsertItem(req.body, req.user));
+    }
     res.status(201).json(masterService.upsertItem(req.body));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.put('/items/:code', authRequired, itemAccess, requireSqliteMode, (req, res) => {
+router.put('/items/:code', authRequired, itemAccess, async (req, res) => {
   try {
-    res.json(masterService.upsertItem({ ...req.body, itemCode: req.params.code }));
+    const payload = { ...req.body, itemCode: req.params.code };
+    if (isMssqlMode()) return res.json(await mssqlMasters.upsertItem(payload, req.user));
+    res.json(masterService.upsertItem(payload));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.get('/cities', authRequired, cityAccess, requireSqliteMode, (req, res) => {
-  res.json(masterService.listCities(req.query.q));
+router.get('/cities', authRequired, cityAccess, async (req, res) => {
+  try {
+    if (isMssqlMode()) return res.json(await mssqlMasters.listCities(req.query.q));
+    res.json(masterService.listCities(req.query.q));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-router.post('/cities', authRequired, cityAccess, requireSqliteMode, (req, res) => {
+router.post('/cities', authRequired, cityAccess, async (req, res) => {
   try {
+    if (isMssqlMode()) {
+      return res.status(201).json(await mssqlMasters.upsertCity(req.body, req.user));
+    }
     res.status(201).json(masterService.upsertCity(req.body));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.put('/cities/:code', authRequired, cityAccess, requireSqliteMode, (req, res) => {
+router.put('/cities/:code', authRequired, cityAccess, async (req, res) => {
   try {
-    res.json(masterService.upsertCity({ ...req.body, cityCode: req.params.code }));
+    const payload = { ...req.body, cityCode: req.params.code };
+    if (isMssqlMode()) return res.json(await mssqlMasters.upsertCity(payload, req.user));
+    res.json(masterService.upsertCity(payload));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.get('/customers', authRequired, customerAccess, requireSqliteMode, (req, res) => {
-  res.json(masterService.listCustomers(req.query.q));
+router.get('/states', authRequired, cityAccess, async (req, res) => {
+  try {
+    if (isMssqlMode()) return res.json(await mssqlMasters.listStates(req.query.q));
+    res.json([]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-router.post('/customers', authRequired, customerAccess, requireSqliteMode, (req, res) => {
+router.get('/customers', authRequired, customerAccess, async (req, res) => {
   try {
+    if (isMssqlMode()) return res.json(await mssqlMasters.listCustomers(req.query.q));
+    res.json(masterService.listCustomers(req.query.q));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/customers', authRequired, customerAccess, async (req, res) => {
+  try {
+    if (isMssqlMode()) {
+      return res.status(201).json(await mssqlMasters.upsertCustomer(req.body, req.user));
+    }
     res.status(201).json(masterService.upsertCustomer(req.body));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.put('/customers/:code', authRequired, customerAccess, requireSqliteMode, (req, res) => {
+router.put('/customers/:code', authRequired, customerAccess, async (req, res) => {
   try {
-    res.json(masterService.upsertCustomer({ ...req.body, customerCode: req.params.code }));
+    const payload = { ...req.body, customerCode: req.params.code };
+    if (isMssqlMode()) return res.json(await mssqlMasters.upsertCustomer(payload, req.user));
+    res.json(masterService.upsertCustomer(payload));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

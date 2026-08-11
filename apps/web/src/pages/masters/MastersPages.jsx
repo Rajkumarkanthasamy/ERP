@@ -12,16 +12,27 @@ export function CitiesPage() {
       allowEdit
       rowKey="cityCode"
       columns={[
-        { field: 'cityCode', header: 'Code', getValue: (r) => r.cityCode || r.code },
+        { field: 'cityCode', header: 'Code / ID', getValue: (r) => r.cityCode || r.code },
         { field: 'cityName', header: 'City', getValue: (r) => r.cityName || r.name },
         { field: 'state', header: 'State' },
+        { field: 'stateCode', header: 'State ID' },
         { field: 'country', header: 'Country', getValue: (r) => r.country || 'India' },
         { field: 'active', header: 'Active', render: (v) => (v === 0 || v === false ? 'No' : 'Yes') },
       ]}
       fields={[
-        { name: 'cityCode', label: 'City code', required: true, disabledOnEdit: true },
+        {
+          name: 'cityCode',
+          label: 'City code / ID',
+          disabledOnEdit: true,
+          helperText: 'Required in demo mode. Live SQL Server assigns CityMaster identity.',
+        },
         { name: 'cityName', label: 'City name', required: true },
-        { name: 'state', label: 'State' },
+        {
+          name: 'state',
+          label: 'State name',
+          helperText: 'Provide state name and/or StateMaster id. Live mode resolves against StateMaster.',
+        },
+        { name: 'stateCode', label: 'State ID (optional override)' },
         { name: 'country', label: 'Country', defaultValue: 'India' },
       ]}
     />
@@ -51,7 +62,9 @@ export function CustomersPage() {
         { name: 'customerCode', label: 'Customer code', required: true, disabledOnEdit: true },
         { name: 'customerName', label: 'Customer name', required: true },
         { name: 'city', label: 'City' },
+        { name: 'state', label: 'State' },
         { name: 'gstin', label: 'GSTIN' },
+        { name: 'contactPerson', label: 'Contact person' },
         { name: 'phone', label: 'Phone' },
         { name: 'email', label: 'Email' },
         { name: 'address', label: 'Address', multiline: true },
@@ -76,13 +89,19 @@ export function VendorsPage() {
         { field: 'vendorName', header: 'Name' },
         { field: 'city', header: 'City' },
         { field: 'gstin', header: 'GSTIN' },
+        { field: 'phone', header: 'Phone' },
         { field: 'active', header: 'Active', render: (v) => (v === 0 || v === false ? 'No' : 'Yes') },
       ]}
       fields={[
         { name: 'vendorCode', label: 'Vendor code', required: true, disabledOnEdit: true },
         { name: 'vendorName', label: 'Vendor name', required: true },
         { name: 'city', label: 'City' },
+        { name: 'state', label: 'State' },
         { name: 'gstin', label: 'GSTIN' },
+        { name: 'contactPerson', label: 'Contact person' },
+        { name: 'phone', label: 'Phone' },
+        { name: 'email', label: 'Email' },
+        { name: 'address', label: 'Address', multiline: true },
       ]}
     />
   );

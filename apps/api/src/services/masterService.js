@@ -280,7 +280,13 @@ export function listCities(q) {
 
 export function upsertCity(payload) {
   const db = getDb();
-  if (!payload.cityCode || !payload.cityName) throw new Error('cityCode and cityName are required');
+  if (!payload.cityName) throw new Error('cityName is required');
+  if (!payload.cityCode) {
+    payload = {
+      ...payload,
+      cityCode: `C${Date.now().toString(36).toUpperCase()}`,
+    };
+  }
   const existing = db.prepare('SELECT id FROM cities WHERE city_code = ?').get(payload.cityCode);
   if (existing) {
     db.prepare(

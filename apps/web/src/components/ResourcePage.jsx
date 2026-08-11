@@ -352,6 +352,7 @@ export default function ResourcePage({
                   multiline={f.multiline}
                   minRows={f.minRows || 1}
                   disabled={Boolean(editing && f.disabledOnEdit)}
+                  helperText={f.helperText}
                   value={form[f.name] ?? ''}
                   onChange={(e) => setForm((prev) => ({ ...prev, [f.name]: e.target.value }))}
                   fullWidth
