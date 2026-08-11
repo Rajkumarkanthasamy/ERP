@@ -1,0 +1,359 @@
+import { mssqlQuery } from '../db/mssql.js';
+import {
+  PO_STATUS_OPTIONS,
+  calculatePriceVariance,
+  computePoAmounts,
+  computePoStatus,
+  getNextPoApprovalStep,
+} from '../constants.js';
+
+/** Read helpers against existing ERP_Database tables used by the C# app. */
+
+export async function listPurchaseRequests({ status, vendor, project, q } = {}) {
+  const where = ['1=1'];
+  const params = {};
+  if (status && status !== 'All') {
+    where.push('pr.Status = @status');
+    params.status = status;
+  }
+  if (vendor) {
+    where.push('(pr.VendorCode LIKE @vendor OR ISNULL(pr.VendorName,\'\') LIKE @vendor)');
+    params.vendor = `%${vendor}%`;
+  }
+  if (project) {
+    where.push('pr.ProjectCode LIKE @project');
+    params.project = `%${project}%`;
+  }
+  if (q) {
+    where.push('(pr.PRNumber LIKE @q OR ISNULL(pr.Remarks,\'\') LIKE @q)');
+    params.q = `%${q}%`;
+  }
+
+  const result = await mssqlQuery(
+    `
+    SELECT TOP 500
+      pr.PRID AS id,
+      pr.PRNumber AS prNumber,
+      pr.ProjectCode AS projectCode,
+      detail.ProductNo AS productNo,
+      pr.VendorCode AS vendorCode,
+      pr.VendorName AS vendorName,
+      pr.TotalAmount AS totalAmount,
+      pr.Status AS status,
+      pr.RequestedBy AS requestedBy,
+      pr.RequestDate AS requestDate,
+      pr.ApprovedBy AS approvedBy,
+      pr.ApprovedDate AS approvedDate,
+      pr.RejectionReason AS rejectionReason,
+      pr.HoldReason AS holdReason,
+      pr.Remarks AS remarks,
+      ISNULL(pr.IsClubbed, 0) AS isClubbed,
+      pr.ClubbedFromPRIDs AS clubbedFromPrIds,
+      DATEDIFF(DAY, pr.RequestDate, GETDATE()) AS ageDays
+    FROM PurchaseRequest pr
+    OUTER APPLY (
+      SELECT TOP 1 d.ProductNo
+      FROM PurchaseRequestDetailNew d
+      WHERE d.PRNumber = pr.PRNumber
+      ORDER BY d.DetailID
+    ) detail
+    WHERE ${where.join(' AND ')}
+    ORDER BY pr.RequestDate DESC, pr.PRID DESC
+    `,
+    params
+  );
+  return result.recordset.map((r) => ({ ...r, isClubbed: !!r.isClubbed }));
+}
+
+export async function getPurchaseRequest(prNumber) {
+  const header = await mssqlQuery(
+    `
+    SELECT TOP 1
+      pr.PRID AS id, pr.PRNumber AS prNumber, pr.ProjectCode AS projectCode,
+      detail.ProductNo AS productNo, pr.VendorCode AS vendorCode,
+      pr.VendorName AS vendorName, pr.TotalAmount AS totalAmount,
+      pr.Status AS status, pr.RequestedBy AS requestedBy, pr.RequestDate AS requestDate,
+      pr.ApprovedBy AS approvedBy, pr.ApprovedDate AS approvedDate, pr.Remarks AS remarks
+    FROM PurchaseRequest pr
+    OUTER APPLY (
+      SELECT TOP 1 d.ProductNo
+      FROM PurchaseRequestDetailNew d
+      WHERE d.PRNumber = pr.PRNumber
+      ORDER BY d.DetailID
+    ) detail
+    WHERE pr.PRNumber = @prNumber
+    `,
+    { prNumber }
+  );
+  if (!header.recordset[0]) return null;
+
+  let lines = [];
+  try {
+    const detail = await mssqlQuery(
+      `
+      SELECT
+        DetailID AS id, PRID AS prId, PRNumber AS prNumber, ItemCode AS itemCode,
+        ItemDescription AS itemDescription, Specification AS specification, Make AS make,
+        MfgPartNo AS mfgPartNo, Quantity AS quantity, UOM AS uom, UnitCost AS unitCost,
+        TotalCost AS totalCost, VendorCode AS vendorCode, VendorName AS vendorName,
+        ISNULL(LineStatus, 'Pending') AS lineStatus
+      FROM PurchaseRequestDetailNew
+      WHERE PRNumber = @prNumber
+      ORDER BY DetailID
+      `,
+      { prNumber }
+    );
+    lines = detail.recordset;
+  } catch {
+    // Fallback if only PurchaseRequestDetail exists
+    try {
+      const detail = await mssqlQuery(
+        `
+        SELECT DetailID AS id, PRID AS prId, ItemCode AS itemCode,
+          ItemDescription AS itemDescription, Quantity AS quantity, UOM AS uom,
+          UnitCost AS unitCost, TotalCost AS totalCost
+        FROM PurchaseRequestDetail
+        WHERE PRID = @prId
+        ORDER BY DetailID
+        `,
+        { prId: header.recordset[0].id }
+      );
+      lines = detail.recordset;
+    } catch {
+      lines = [];
+    }
+  }
+
+  return { ...header.recordset[0], lines };
+}
+
+export async function priceVariance(prNumber) {
+  const result = await mssqlQuery(
+    `
+    SELECT
+      d.DetailID AS id,
+      d.ItemCode AS itemCode,
+      COALESCE(NULLIF(d.ItemDescription, ''), i.ItemDescription) AS itemDescription,
+      ISNULL(d.UnitCost, 0) AS prUnitCost,
+      lastPo.UnitPrice AS poUnitPrice,
+      lastPo.DBOMNo AS lastPoRef,
+      lastPo.POPreparedDate AS lastPoDate,
+      i.UnitCost AS latestPrice,
+      i.UnitCost AS standardCost,
+      i.FixedCost AS fixedCost,
+      i.TargetCost AS targetCost
+    FROM PurchaseRequestDetailNew d
+    LEFT JOIN ItemMaster i ON i.ItemCode = d.ItemCode
+    OUTER APPLY (
+      SELECT TOP 1 po.UnitPrice, po.DBOMNo, po.POPreparedDate
+      FROM PurchaseOrder po
+      WHERE po.ItemCode = d.ItemCode
+        AND ISNULL(po.UnitPrice, 0) > 0
+      ORDER BY po.ID DESC
+    ) lastPo
+    WHERE d.PRNumber = @prNumber
+    ORDER BY d.DetailID
+    `,
+    { prNumber }
+  );
+  if (!result.recordset.length) throw new Error('PR not found or has no lines');
+
+  return result.recordset.map((line) => {
+    const baselinePrice = Number(
+      line.poUnitPrice ?? line.latestPrice ?? line.fixedCost ?? 0
+    );
+    const variance = calculatePriceVariance(line.prUnitCost, baselinePrice);
+    return {
+      ...line,
+      baselinePrice,
+      variancePct: variance.variancePct,
+      varianceAmount: variance.varianceAmount,
+      flag: variance.flag,
+    };
+  });
+}
+
+export async function listPurchaseOrders({ status, poNumber, vendor, project, q } = {}) {
+  const where = ['1=1'];
+  const params = {};
+  if (poNumber) {
+    where.push('po.DBOMNo LIKE @poNumber');
+    params.poNumber = `%${poNumber}%`;
+  }
+  if (vendor) {
+    where.push('(po.VendorCode LIKE @vendor OR ISNULL(v.VendorName,\'\') LIKE @vendor)');
+    params.vendor = `%${vendor}%`;
+  }
+  if (project) {
+    where.push('po.ProjectCode LIKE @project');
+    params.project = `%${project}%`;
+  }
+  if (q) {
+    where.push(
+      `(po.DBOMNo LIKE @q OR po.VendorCode LIKE @q OR ISNULL(v.VendorName, '') LIKE @q OR po.ProjectCode LIKE @q)`
+    );
+    params.q = `%${q}%`;
+  }
+
+  const result = await mssqlQuery(
+    `
+    SELECT TOP 1000
+      po.ID AS id,
+      po.DBOMNo AS poRef,
+      po.ProjectCode AS projectCode,
+      po.VendorCode AS vendorCode,
+      v.VendorName AS vendorName,
+      po.ItemCode AS itemCode,
+      i.ItemDescription AS itemDescription,
+      po.UOM AS uom,
+      po.RequariedQty AS requiredQty,
+      ISNULL(po.RemainingQty, po.RequariedQty) AS remainingQty,
+      po.UnitPrice AS unitPrice,
+      po.Amount AS amount,
+      ISNULL(po.IGSTAmount,0) AS igstAmount,
+      ISNULL(po.SGSTAmount,0) AS sgstAmount,
+      ISNULL(po.CGSTAmount,0) AS cgstAmount,
+      ISNULL(po.POApproved,0) AS poApproved,
+      po.PMApproved AS pmApproved,
+      po.MHApproved AS mhApproved,
+      CASE
+        WHEN NULLIF(po.PurchaseCommitee, '') IS NOT NULL
+          OR NULLIF(po.PCAuthoriseDate, '') IS NOT NULL THEN 1
+        ELSE 0
+      END AS pcApproved,
+      po.OMApproved AS omApproved,
+      po.GMCostApproved AS gmApproved,
+      po.POGeneratedBy AS poGeneratedBy,
+      po.POGeneratedDate AS poGeneratedDate,
+      po.POSenttoVendorBy AS poSentToVendorBy,
+      po.FinalStatus AS finalStatus,
+      po.RejectReason AS rejectReason,
+      po.CancelledBy AS cancelledBy,
+      po.ClosedBy AS closedBy,
+      po.PreparedBy AS preparedBy,
+      po.POPreparedDate AS preparedDate
+    FROM PurchaseOrder po
+    LEFT JOIN Vendors v ON v.VendorCode = po.VendorCode
+    LEFT JOIN ItemMaster i ON i.ItemCode = po.ItemCode
+    WHERE ${where.join(' AND ')}
+    ORDER BY po.ID DESC
+    `,
+    params
+  );
+
+  // Group by poRef like the web UI expects
+  const map = new Map();
+  for (const row of result.recordset) {
+    const key = row.poRef || String(row.id);
+    if (!map.has(key)) {
+      map.set(key, {
+        poRef: key,
+        vendorCode: row.vendorCode,
+        vendorName: row.vendorName,
+        projectCode: row.projectCode,
+        poApproved: !!row.poApproved,
+        pmApproved: !!row.pmApproved,
+        mhApproved: !!row.mhApproved,
+        pcApproved: !!row.pcApproved,
+        omApproved: !!row.omApproved,
+        gmApproved: !!row.gmApproved,
+        poGeneratedBy: row.poGeneratedBy,
+        preparedBy: row.preparedBy,
+        preparedDate: row.preparedDate,
+        lines: [],
+        baseAmount: 0,
+        gstAmount: 0,
+        totalAmount: 0,
+      });
+    }
+    const g = map.get(key);
+    g.lines.push(row);
+    g.baseAmount += Number(row.amount || 0);
+    g.gstAmount +=
+      Number(row.igstAmount || 0) + Number(row.sgstAmount || 0) + Number(row.cgstAmount || 0);
+    g.totalAmount = g.baseAmount + g.gstAmount;
+  }
+
+  let items = [...map.values()].map((group) => {
+    const amounts = computePoAmounts(group.lines);
+    const approval = {
+      pmApproved: group.pmApproved,
+      mhApproved: group.mhApproved,
+      pcApproved: group.pcApproved,
+      omApproved: group.omApproved,
+      gmApproved: group.gmApproved,
+    };
+    return {
+      ...group,
+      ...amounts,
+      status: computePoStatus(group),
+      nextStep: getNextPoApprovalStep({
+        ...approval,
+        approvalTier: amounts.approvalTier,
+      }),
+    };
+  });
+  if (status && status !== 'All') {
+    items = items.filter((group) => group.status === status);
+  }
+  return {
+    statusOptions: PO_STATUS_OPTIONS,
+    items,
+  };
+}
+
+export { listVendors, listItems, listProjects } from './mssqlMasterService.js';
+
+export async function dashboardSummary() {
+  const pending = await mssqlQuery(
+    `SELECT COUNT(*) AS count, ISNULL(SUM(TotalAmount),0) AS amount FROM PurchaseRequest WHERE Status = 'Pending'`
+  );
+  const approved = await mssqlQuery(
+    `SELECT COUNT(*) AS count, ISNULL(SUM(TotalAmount),0) AS amount FROM PurchaseRequest WHERE Status IN ('Approved','Partially Converted')`
+  );
+  let posAwaiting = { count: 0, amount: 0 };
+  try {
+    const r = await mssqlQuery(
+      `SELECT COUNT(DISTINCT DBOMNo) AS count, ISNULL(SUM(Amount),0) AS amount FROM PurchaseOrder WHERE ISNULL(POApproved,0) = 0`
+    );
+    posAwaiting = r.recordset[0];
+  } catch {
+    /* ignore */
+  }
+
+  return {
+    metrics: [
+      {
+        metric: 'Pending PR Approvals',
+        count: pending.recordset[0].count,
+        amount: pending.recordset[0].amount,
+      },
+      {
+        metric: 'Approved PRs Ready for PO',
+        count: approved.recordset[0].count,
+        amount: approved.recordset[0].amount,
+      },
+      {
+        metric: 'POs Awaiting Approval',
+        count: posAwaiting.count,
+        amount: posAwaiting.amount,
+      },
+      { metric: 'Item Codes Pending', count: 0, amount: 0 },
+    ],
+    agingPRs: (
+      await mssqlQuery(
+        `
+        SELECT TOP 20
+          PRNumber AS prNumber, ProjectCode AS projectCode, VendorCode AS vendorCode,
+          TotalAmount AS totalAmount, Status AS status, RequestedBy AS requestedBy,
+          RequestDate AS requestDate, DATEDIFF(DAY, RequestDate, GETDATE()) AS ageDays
+        FROM PurchaseRequest
+        WHERE Status IN ('Pending','On Hold')
+        ORDER BY RequestDate ASC
+        `
+      )
+    ).recordset,
+    recentActivity: [],
+    source: 'mssql',
+  };
+}
