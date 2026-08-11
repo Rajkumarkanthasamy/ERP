@@ -3,6 +3,7 @@ import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { calculatePriceVariance } from '../src/constants.js';
 import { closeDb, getDb } from '../src/db/connection.js';
 import * as grnService from '../src/services/grnService.js';
 import * as poService from '../src/services/poService.js';
@@ -19,6 +20,18 @@ test.after(() => {
   rmSync(dbPath, { force: true });
   rmSync(`${dbPath}-shm`, { force: true });
   rmSync(`${dbPath}-wal`, { force: true });
+});
+
+test('price variance uses the configured watch and alert thresholds', () => {
+  assert.deepEqual(calculatePriceVariance(104, 100), {
+    current: 104,
+    baseline: 100,
+    variancePct: 4,
+    varianceAmount: 4,
+    flag: 'OK',
+  });
+  assert.equal(calculatePriceVariance(105, 100).flag, 'Watch');
+  assert.equal(calculatePriceVariance(90, 100).flag, 'ALERT');
 });
 
 test('PR to PO to GRN contracts preserve vendor, approval step, and receipt fields', () => {

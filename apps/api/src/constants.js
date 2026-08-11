@@ -26,6 +26,23 @@ export const VARIANCE = {
   ALERT: 10,
 };
 
+export function calculatePriceVariance(currentValue, baselineValue) {
+  const current = Number(currentValue || 0);
+  const baseline = Number(baselineValue || 0);
+  const varianceAmount = current - baseline;
+  const variancePct = baseline > 0 ? (varianceAmount / baseline) * 100 : 0;
+  let flag = 'OK';
+  if (Math.abs(variancePct) >= VARIANCE.ALERT) flag = 'ALERT';
+  else if (Math.abs(variancePct) >= VARIANCE.WATCH) flag = 'Watch';
+  return {
+    current,
+    baseline,
+    variancePct: +variancePct.toFixed(2),
+    varianceAmount: +varianceAmount.toFixed(2),
+    flag,
+  };
+}
+
 export const PO_STATUS_OPTIONS = [
   'All',
   'Created',

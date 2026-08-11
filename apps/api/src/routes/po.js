@@ -82,16 +82,14 @@ router.get('/status', authRequired, async (req, res) => {
   }
 });
 
-router.get('/variance/:prNumber', authRequired, (req, res) => {
+router.get('/variance/:prNumber', authRequired, async (req, res) => {
   try {
     if (isMssqlMode()) {
-      return res.status(501).json({
-        error: 'Price variance UI against SQL Server last-PO compare is next; use C# screen meanwhile.',
-      });
+      return res.json(await legacy.priceVariance(req.params.prNumber));
     }
-    res.json(poService.priceVariance(req.params.prNumber));
+    return res.json(poService.priceVariance(req.params.prNumber));
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    return res.status(400).json({ error: err.message });
   }
 });
 

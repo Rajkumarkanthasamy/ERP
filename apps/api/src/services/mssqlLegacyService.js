@@ -1,6 +1,7 @@
 import { mssqlQuery } from '../db/mssql.js';
 import {
   PO_STATUS_OPTIONS,
+  calculatePriceVariance,
   computePoAmounts,
   computePoStatus,
   getNextPoApprovalStep,
@@ -124,6 +125,51 @@ export async function getPurchaseRequest(prNumber) {
   }
 
   return { ...header.recordset[0], lines };
+}
+
+export async function priceVariance(prNumber) {
+  const result = await mssqlQuery(
+    `
+    SELECT
+      d.DetailID AS id,
+      d.ItemCode AS itemCode,
+      COALESCE(NULLIF(d.ItemDescription, ''), i.ItemDescription) AS itemDescription,
+      ISNULL(d.UnitCost, 0) AS prUnitCost,
+      lastPo.UnitPrice AS poUnitPrice,
+      lastPo.DBOMNo AS lastPoRef,
+      lastPo.POPreparedDate AS lastPoDate,
+      i.UnitCost AS latestPrice,
+      i.FixedCost AS standardCost,
+      i.TargetCost AS targetCost
+    FROM PurchaseRequestDetailNew d
+    LEFT JOIN ItemMaster i ON i.ItemCode = d.ItemCode
+    OUTER APPLY (
+      SELECT TOP 1 po.UnitPrice, po.DBOMNo, po.POPreparedDate
+      FROM PurchaseOrder po
+      WHERE po.ItemCode = d.ItemCode
+        AND ISNULL(po.UnitPrice, 0) > 0
+      ORDER BY po.ID DESC
+    ) lastPo
+    WHERE d.PRNumber = @prNumber
+    ORDER BY d.DetailID
+    `,
+    { prNumber }
+  );
+  if (!result.recordset.length) throw new Error('PR not found or has no lines');
+
+  return result.recordset.map((line) => {
+    const baselinePrice = Number(
+      line.poUnitPrice ?? line.latestPrice ?? line.standardCost ?? 0
+    );
+    const variance = calculatePriceVariance(line.prUnitCost, baselinePrice);
+    return {
+      ...line,
+      baselinePrice,
+      variancePct: variance.variancePct,
+      varianceAmount: variance.varianceAmount,
+      flag: variance.flag,
+    };
+  });
 }
 
 export async function listPurchaseOrders({ status, poNumber, vendor, project, q } = {}) {

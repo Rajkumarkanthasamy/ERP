@@ -153,6 +153,9 @@ implement the legacy report queries or export/print behavior.
     selected lines by PO, rejects over-receipt, and persists invoice numbers.
     The complete PR → PO → role approvals → generate → send → GRN flow is
     covered by API regression tests and a browser test in SQLite mode.
+13. Price variance now uses the same 5% watch and 10% alert thresholds in both
+    modes. The SQL Server adapter compares each PR line with its latest
+    `PurchaseOrder` unit price and falls back to `ItemMaster` unit/fixed cost.
 
 ## Definition of full parity
 

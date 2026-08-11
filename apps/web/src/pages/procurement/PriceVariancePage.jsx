@@ -96,7 +96,14 @@ export default function PriceVariancePage() {
                     </Typography>
                   </TableCell>
                   <TableCell>{formatINR(l.prUnitCost ?? l.unitCost)}</TableCell>
-                  <TableCell>{formatINR(l.poUnitPrice ?? l.latestPrice)}</TableCell>
+                  <TableCell>
+                    {formatINR(l.poUnitPrice ?? l.latestPrice ?? l.baselinePrice)}
+                    {l.lastPoRef && (
+                      <Typography variant="caption" display="block" color="text.secondary">
+                        {l.lastPoRef}
+                      </Typography>
+                    )}
+                  </TableCell>
                   <TableCell>{Number(l.variancePct ?? l.variance ?? 0).toFixed(2)}%</TableCell>
                   <TableCell>
                     <StatusChip status={l.flag || (Math.abs(l.variancePct) >= 10 ? 'Alert' : 'Watch')} />

@@ -4,9 +4,9 @@ import {
   PR_STATUS,
   computePoAmounts,
   computePoStatus,
+  calculatePriceVariance,
   getNextPoApprovalStep,
   PO_STATUS_OPTIONS,
-  VARIANCE,
 } from '../constants.js';
 import { applyGst, logActivity } from './helpers.js';
 
@@ -489,10 +489,7 @@ export function priceVariance(prNumber) {
 
     const baseline = Number(lastPo?.unit_price ?? item?.latest_purchase_price ?? item?.standard_cost ?? 0);
     const current = Number(line.unit_cost || 0);
-    const pct = baseline > 0 ? ((current - baseline) / baseline) * 100 : 0;
-    let flag = 'OK';
-    if (Math.abs(pct) >= VARIANCE.ALERT) flag = 'ALERT';
-    else if (Math.abs(pct) >= VARIANCE.WATCH) flag = 'Watch';
+    const variance = calculatePriceVariance(current, baseline);
 
     return {
       itemCode: line.item_code,
@@ -501,9 +498,9 @@ export function priceVariance(prNumber) {
       baselinePrice: baseline,
       lastPoRef: lastPo?.po_ref || null,
       lastPoDate: lastPo?.prepared_date || null,
-      variancePct: +pct.toFixed(2),
-      varianceAmount: +(current - baseline).toFixed(2),
-      flag,
+      variancePct: variance.variancePct,
+      varianceAmount: variance.varianceAmount,
+      flag: variance.flag,
       standardCost: item?.standard_cost ?? null,
     };
   });
