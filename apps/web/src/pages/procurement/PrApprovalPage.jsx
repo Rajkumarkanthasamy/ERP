@@ -25,6 +25,19 @@ import { apiGet, apiPost } from '../../api/client';
 import { formatDate, formatINR } from '../../utils/format';
 import { useSnackbar } from '../../components/SnackbarProvider';
 
+const ACTIONS_BY_STATUS = {
+  Pending: [
+    { action: 'approve', label: 'Approve' },
+    { action: 'hold', label: 'Hold', color: 'warning', reasonRequired: true },
+    { action: 'reject', label: 'Reject', color: 'error', reasonRequired: true },
+  ],
+  'On Hold': [
+    { action: 'approve', label: 'Approve' },
+    { action: 'release', label: 'Release' },
+    { action: 'reject', label: 'Reject', color: 'error', reasonRequired: true },
+  ],
+};
+
 export default function PrApprovalPage() {
   const { success, error } = useSnackbar();
   const [rows, setRows] = useState([]);
@@ -53,13 +66,17 @@ export default function PrApprovalPage() {
 
   const decide = async () => {
     if (!dialog) return;
+    if (dialog.reasonRequired && !reason.trim()) {
+      error(`${dialog.label} reason is required`);
+      return;
+    }
     setBusy(true);
     try {
-      await apiPost(`/prs/${dialog.pr.prNumber}/status`, {
-        status: dialog.action,
+      await apiPost(`/prs/${encodeURIComponent(dialog.pr.prNumber)}/status`, {
+        action: dialog.action,
         reason,
       });
-      success(`${dialog.pr.prNumber} marked ${dialog.action}`);
+      success(`${dialog.pr.prNumber}: ${dialog.label} completed`);
       setDialog(null);
       setReason('');
       await load();
@@ -129,15 +146,16 @@ export default function PrApprovalPage() {
                   </TableCell>
                   <TableCell align="right">
                     <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                      <Button size="small" onClick={() => setDialog({ pr, action: 'Approved' })}>
-                        Approve
-                      </Button>
-                      <Button size="small" color="warning" onClick={() => setDialog({ pr, action: 'On Hold' })}>
-                        Hold
-                      </Button>
-                      <Button size="small" color="error" onClick={() => setDialog({ pr, action: 'Rejected' })}>
-                        Reject
-                      </Button>
+                      {(ACTIONS_BY_STATUS[pr.status] || []).map((action) => (
+                        <Button
+                          key={action.action}
+                          size="small"
+                          color={action.color || 'primary'}
+                          onClick={() => setDialog({ pr, ...action })}
+                        >
+                          {action.label}
+                        </Button>
+                      ))}
                     </Stack>
                   </TableCell>
                 </TableRow>
@@ -149,7 +167,7 @@ export default function PrApprovalPage() {
 
       <Dialog open={Boolean(dialog)} onClose={() => setDialog(null)} fullWidth maxWidth="xs">
         <DialogTitle>
-          {dialog?.action} — {dialog?.pr?.prNumber}
+          {dialog?.label} — {dialog?.pr?.prNumber}
         </DialogTitle>
         <DialogContent>
           <TextField
