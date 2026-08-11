@@ -669,6 +669,7 @@ export function applySchema(db) {
 
   ensureColumn(db, 'projects', 'customer_code', 'TEXT');
   ensureColumn(db, 'projects', 'customer_name', 'TEXT');
+  ensureColumn(db, 'projects', 'pm_name', 'TEXT');
   ensureColumn(db, 'projects', 'approval_status', "TEXT DEFAULT 'Approved'");
   ensureColumn(db, 'projects', 'approved_by', 'TEXT');
   ensureColumn(db, 'projects', 'approved_date', 'TEXT');
