@@ -46,6 +46,7 @@ BEGIN
         VendorCode    NVARCHAR(64) NULL,
         ProjectCode   NVARCHAR(64) NULL,
         InvoiceNo     NVARCHAR(100) NULL,
+        LegacyGinNumber NVARCHAR(32) NULL,
         ReceivedBy    NVARCHAR(64) NULL,
         ReceivedDate  DATETIME NOT NULL CONSTRAINT DF_GRN_Date DEFAULT GETDATE(),
         Status        NVARCHAR(30) NOT NULL CONSTRAINT DF_GRN_Status DEFAULT 'Received',
@@ -59,6 +60,21 @@ GO
 IF COL_LENGTH('ProcurementGRN', 'InvoiceNo') IS NULL
 BEGIN
     ALTER TABLE ProcurementGRN ADD InvoiceNo NVARCHAR(100) NULL;
+END
+GO
+
+IF COL_LENGTH('ProcurementGRN', 'LegacyGinNumber') IS NULL
+BEGIN
+    ALTER TABLE ProcurementGRN ADD LegacyGinNumber NVARCHAR(32) NULL;
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_ProcurementGRN_LegacyGin' AND object_id = OBJECT_ID('ProcurementGRN')
+)
+BEGIN
+    CREATE INDEX IX_ProcurementGRN_LegacyGin ON ProcurementGRN(LegacyGinNumber);
 END
 GO
 

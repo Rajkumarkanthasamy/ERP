@@ -10,6 +10,14 @@ import {
   computePoAmounts,
   getNextPoApprovalStep,
 } from '../constants.js';
+import {
+  allocateLegacyGin,
+  assertInvoiceAvailable,
+  formatBatchCode,
+  postLegacyReceiptLine,
+  resolveVendorName,
+  writeGinAuditLog,
+} from './mssqlGinBridgeService.js';
 
 async function nextPrNumber(transaction) {
   const now = new Date();
@@ -621,11 +629,17 @@ export async function createGRN({
   vendorCode,
   projectCode,
   invoiceNo,
+  invoiceDate,
   remarks,
   lines,
+  batchCode,
+  itemLocation,
   user,
 }) {
   if (!lines?.length) throw new Error('No lines to receive');
+  const invoice = String(invoiceNo || '').trim();
+  if (!invoice) throw new Error('Invoice number is required for live GRN / GIN posting');
+
   const normalizedLines = lines
     .map((line) => ({
       ...line,
@@ -653,7 +667,43 @@ export async function createGRN({
     const resolvedVendorCode = vendorCode || firstPo.VendorCode;
     const resolvedProjectCode = projectCode || firstPo.ProjectCode;
 
-    const now = new Date();
+    await assertInvoiceAvailable(tx, {
+      vendorCode: resolvedVendorCode,
+      invoiceNo: invoice,
+    });
+
+    const poRows = [];
+    let totalCost = 0;
+    for (const line of normalizedLines) {
+      const poReq = new sql.Request(tx);
+      poReq.input('POID', sql.Int, line.poId);
+      const poRow = await poReq.query(`SELECT * FROM PurchaseOrder WHERE ID = @POID`);
+      const po = poRow.recordset[0];
+      if (!po) throw new Error(`PO line ${line.poId} not found`);
+      if (po.DBOMNo !== resolvedPoRef) {
+        throw new Error('A GRN can only receive lines from one purchase order');
+      }
+      const remaining = Number(po.RemainingQty ?? po.RequariedQty ?? 0);
+      if (line.receivedQty > remaining) {
+        throw new Error(`Received qty exceeds remaining for ${po.ItemCode}`);
+      }
+      poRows.push({ line, po });
+      totalCost += line.receivedQty * Number(po.UnitPrice || 0);
+    }
+
+    const name = user.displayName || user.username;
+    const ginDate = new Date();
+    const { legacyGinNumber, ginDate: ginDateText } = await allocateLegacyGin(tx, {
+      poRef: resolvedPoRef,
+      invoiceNo: invoice,
+      totalCost,
+      userName: name,
+      ginDate,
+    });
+    const supplierName = await resolveVendorName(tx, resolvedVendorCode);
+    const resolvedBatch = batchCode || formatBatchCode(ginDate);
+
+    const now = ginDate;
     const prefix = `GRN-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-`;
     const nreq = new sql.Request(tx);
     nreq.input('Prefix', sql.NVarChar, prefix);
@@ -666,40 +716,29 @@ export async function createGRN({
       seq = (parseInt(p[p.length - 1], 10) || 0) + 1;
     }
     const grnNumber = `${prefix}${String(seq).padStart(5, '0')}`;
-    const name = user.displayName || user.username;
 
     const hdr = new sql.Request(tx);
     hdr.input('GRN', sql.NVarChar, grnNumber);
     hdr.input('PORef', sql.NVarChar, resolvedPoRef);
     hdr.input('Vendor', sql.NVarChar, resolvedVendorCode || null);
     hdr.input('Project', sql.NVarChar, resolvedProjectCode || null);
-    hdr.input('InvoiceNo', sql.NVarChar, invoiceNo || null);
+    hdr.input('InvoiceNo', sql.NVarChar, invoice);
+    hdr.input('LegacyGin', sql.NVarChar, legacyGinNumber);
     hdr.input('By', sql.NVarChar, name);
     hdr.input('Remarks', sql.NVarChar, remarks || null);
     const inserted = await hdr.query(`
       INSERT INTO ProcurementGRN
-        (GRNNumber, PORef, VendorCode, ProjectCode, InvoiceNo, ReceivedBy, Remarks, CreatedBy, Status)
+        (GRNNumber, PORef, VendorCode, ProjectCode, InvoiceNo, LegacyGinNumber,
+         ReceivedBy, Remarks, CreatedBy, Status)
       VALUES
-        (@GRN, @PORef, @Vendor, @Project, @InvoiceNo, @By, @Remarks, @By, 'Received');
+        (@GRN, @PORef, @Vendor, @Project, @InvoiceNo, @LegacyGin,
+         @By, @Remarks, @By, 'Received');
       SELECT CAST(SCOPE_IDENTITY() AS INT) AS id;
     `);
     const grnId = inserted.recordset[0].id;
 
-    for (const line of normalizedLines) {
+    for (const { line, po } of poRows) {
       const recvQty = line.receivedQty;
-      const poReq = new sql.Request(tx);
-      poReq.input('POID', sql.Int, line.poId);
-      const poRow = await poReq.query(`SELECT * FROM PurchaseOrder WHERE ID = @POID`);
-      const po = poRow.recordset[0];
-      if (!po) throw new Error(`PO line ${line.poId} not found`);
-      if (po.DBOMNo !== resolvedPoRef) {
-        throw new Error('A GRN can only receive lines from one purchase order');
-      }
-      const remaining = Number(po.RemainingQty ?? po.RequariedQty ?? 0);
-      if (recvQty > remaining) {
-        throw new Error(`Received qty exceeds remaining for ${po.ItemCode}`);
-      }
-
       const d = new sql.Request(tx);
       d.input('GRNID', sql.Int, grnId);
       d.input('GRN', sql.NVarChar, grnNumber);
@@ -718,6 +757,18 @@ export async function createGRN({
           (@GRNID, @GRN, @POID, @Item, @Ordered, @Recv, @Price, @Amount, @UOM, @Remarks)
       `);
 
+      await postLegacyReceiptLine(tx, {
+        po,
+        receivedQty: recvQty,
+        legacyGinNumber,
+        ginDate: ginDateText,
+        invoiceNo: invoice,
+        invoiceDate: invoiceDate || ginDateText,
+        supplierName,
+        batchCode: resolvedBatch,
+        itemLocation: itemLocation || line.itemLocation,
+      });
+
       const up = new sql.Request(tx);
       up.input('Recv', sql.Float, recvQty);
       up.input('POID', sql.Int, po.ID);
@@ -731,17 +782,23 @@ export async function createGRN({
       `);
     }
 
+    await writeGinAuditLog(tx, {
+      legacyGinNumber,
+      userName: name,
+      ginDate: ginDateText,
+    });
+
     await tx.commit();
     return {
       grnNumber,
+      legacyGinNumber,
       poRef: resolvedPoRef,
-      invoiceNo: invoiceNo || null,
+      invoiceNo: invoice,
       status: 'Received',
     };
   } catch (err) {
     await tx.rollback();
-    // If ProcurementGRN table missing, surface clear message
-    if (/Invalid object name|Invalid column name 'InvoiceNo'/i.test(err.message)) {
+    if (/Invalid object name|Invalid column name '(InvoiceNo|LegacyGinNumber)'/i.test(err.message)) {
       throw new Error(
         `${err.message}. Run apps/api/sql/Phase3_Schema_Alignment.sql on ERP_Database first.`
       );

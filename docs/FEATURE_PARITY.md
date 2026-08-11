@@ -22,11 +22,11 @@ The web application currently contains 50 routes and 17 API route groups. Severa
 routes combine multiple legacy screens, but most modules outside procurement are
 simplified SQLite demo CRUD screens.
 
-In SQL Server mode, only authentication, dashboard, PR, PO, GRN, gate
-inward/outward, city/customer/vendor/item master writes, project reads, and
-parts of the remaining masters currently have explicit MSSQL code paths. Other
-route groups now return `501 MSSQL_WORKFLOW_NOT_MAPPED`; they cannot silently
-read or write the SQLite demo database while live ERP mode is selected.
+In SQL Server mode, authentication, dashboard, PR, PO, GRN (including legacy
+GIN stock posting), gate inward/outward, city/customer/vendor/item master
+writes, and project reads currently have explicit MSSQL code paths. Other route
+groups now return `501 MSSQL_WORKFLOW_NOT_MAPPED`; they cannot silently read or
+write the SQLite demo database while live ERP mode is selected.
 
 ### Status labels
 
@@ -57,7 +57,7 @@ read or write the SQLite demo database while live ERP mode is selected.
 | Purchase order | PO/WO creation, pricing/tax/terms, approval chain, finalization, update request, cancel/close, repeat order, vendor confirmation, tracking, reminders | Partial | Web handles role-specific approval, generate/send and status/receipt transitions; the classic `POStatus` menu form is only a stub, but implemented tracking subforms and the remaining PO actions still need migration |
 | Work order | Job-work order generation, approval, costs, issue/return and tracking | Demo | Live `WorkOrder`, `WOOtherCost`, `WOApproveList`, job issue/movement |
 | Currency/terms | Currency rate, GST/tax, payment, delivery, packing/forwarding and general terms | Missing | All related master screens and PO integration |
-| GIN/receipt | PO/WO receipt, other-item GIN, inspection request, document scanning, tax, service GIN | Partial | A validated `ProcurementGRN` SQL extension exists; legacy `Receipt`/`GINOtherItemReceipt`, inspection and attachment/scanning workflows remain |
+| GIN/receipt | PO/WO receipt, other-item GIN, inspection request, document scanning, tax, service GIN | Partial | Live PO GRN posts `ProcurementGRN` plus `JobMovement`/`Receipt`/`ERPInventoryLogs`/`ItemMaster` qty in one transaction; WO/other-item GIN, inspection, WAR and attachment/scanning remain |
 | Reverse GIN | Reverse receipt and inventory effects | Missing | `RiverseGIN`/`ERPReverseInventoryLogs` transaction |
 | Item issue/return | Project/job issue, return, stock validation and FIFO logs | Demo | Live atomic inventory transactions and project/job rules |
 | Inventory | Ledgers, cycle count, location update/history, stock adjustment and grading; the legacy dashboard entry is a dead stub | Demo | Live inventory calculations, audit logs, cycle count and location workflows |
@@ -165,6 +165,12 @@ implement the legacy report queries or export/print behavior.
     SQL Server tables. Cities resolve `StateMaster` by name or id (legacy stores
     `StateMaster.Id` in `CityMaster.StateCode`). Item `FixedCost` changes write
     `ItemStdCostHistory` in the same transaction.
+16. Live GRN create now posts legacy inventory in the same SQL transaction:
+    allocates `ITWGIN{n}` via `JobMovement`, inserts `Receipt` and
+    `ERPInventoryLogs`, updates `ItemMaster` on-hand qty, writes
+    `ERPTransactionLog`, and stores `ProcurementGRN.LegacyGinNumber`. Invoice
+    numbers are required and vendor+invoice duplicates are rejected. Full
+    domestic WAR, WO/other-item GIN and reverse GIN remain.
 
 ## Definition of full parity
 

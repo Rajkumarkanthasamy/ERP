@@ -84,6 +84,10 @@ export default function GrnPage() {
       error('Select at least one PO line');
       return;
     }
+    if (!String(invoiceNo || '').trim()) {
+      error('Invoice number is required');
+      return;
+    }
     if (
       lines.some(
         (line) =>
@@ -109,11 +113,15 @@ export default function GrnPage() {
           poRef,
           vendorCode: first.vendorCode,
           projectCode: first.projectCode,
-          invoiceNo,
+          invoiceNo: String(invoiceNo).trim(),
           remarks,
           lines: poLines.map(({ poId, receivedQty }) => ({ poId, receivedQty })),
         });
-        created.push(res?.grnNumber);
+        created.push(
+          res?.legacyGinNumber
+            ? `${res.grnNumber} (${res.legacyGinNumber})`
+            : res?.grnNumber
+        );
       }
       success(`GRN ${created.filter(Boolean).join(', ')} created`);
       setDialogOpen(false);
@@ -129,7 +137,7 @@ export default function GrnPage() {
     <Box>
       <PageHeader
         title="Goods Receipt Note (GRN)"
-        subtitle="Receive open PO lines against invoices."
+        subtitle="Receive open PO lines against invoices. Live mode also posts legacy ITWGIN stock."
         crumbs={[
           { label: 'Home', to: '/' },
           { label: 'Procurement', to: '/procurement' },
@@ -150,6 +158,7 @@ export default function GrnPage() {
             <TableHead>
               <TableRow>
                 <TableCell>GRN No</TableCell>
+                <TableCell>Legacy GIN</TableCell>
                 <TableCell>Invoice</TableCell>
                 <TableCell>PO</TableCell>
                 <TableCell>Vendor</TableCell>
@@ -161,10 +170,11 @@ export default function GrnPage() {
               {grns.map((g) => (
                 <TableRow key={g.grnNumber || g.id} hover>
                   <TableCell>{g.grnNumber}</TableCell>
+                  <TableCell>{g.legacyGinNumber || '—'}</TableCell>
                   <TableCell>{g.invoiceNo || '—'}</TableCell>
                   <TableCell>{g.poRef || '—'}</TableCell>
                   <TableCell>{g.vendorName || g.vendorCode || '—'}</TableCell>
-                  <TableCell>{formatDate(g.grnDate || g.createdAt)}</TableCell>
+                  <TableCell>{formatDate(g.grnDate || g.receivedDate || g.createdAt)}</TableCell>
                   <TableCell>{formatINR(g.totalAmount)}</TableCell>
                 </TableRow>
               ))}
@@ -178,7 +188,14 @@ export default function GrnPage() {
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField label="Invoice No" value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} fullWidth />
+              <TextField
+                label="Invoice No"
+                value={invoiceNo}
+                onChange={(e) => setInvoiceNo(e.target.value)}
+                required
+                fullWidth
+                helperText="Required for live GIN posting to Receipt / inventory"
+              />
               <TextField label="Remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} fullWidth />
             </Stack>
             {openLines.length === 0 ? (

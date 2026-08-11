@@ -104,7 +104,9 @@ The mapped web subset currently supports these **reads and writes**:
 9. **PO Status View**
 10. **Price variance** against latest PO / ItemMaster cost
 11. **GRN** receive into the web `ProcurementGRN` extension (run
-    `apps/api/sql/Phase3_Schema_Alignment.sql` once in SSMS)
+    `apps/api/sql/Phase3_Schema_Alignment.sql` once in SSMS) and, in the same
+    SQL transaction, post legacy GIN stock to `JobMovement` / `Receipt` /
+    `ERPInventoryLogs` / `ItemMaster` with `ERPTransactionLog` audit
 12. **Gate Inward / Outward / Manual Inward** → `SecurityInward` /
     `SecurityOutward`
 13. Vendors, Items and Projects (read)
@@ -112,10 +114,10 @@ The mapped web subset currently supports these **reads and writes**:
     `CityMaster` + `StateMaster`, `CustomerMaster`, `Vendors`, `ItemMaster`
     with `ItemStdCostHistory` on standard-cost changes
 
-The web GRN extension updates PO remaining quantity, but it does not yet perform
-all legacy GIN inventory postings to `Receipt`, `ERPInventoryLogs` and
-`ItemMaster`. Do not treat it as a replacement for the stores GIN workflow until
-that transactional bridge is completed. Other unmapped live routes return
+Live GRN requires an invoice number, allocates `ITWGIN{n}` via `JobMovement`,
+stores `ProcurementGRN.LegacyGinNumber`, and updates on-hand qty without the
+full WinForms domestic WAR recalculation. Reverse GIN, other-item GIN, and
+freight/tax distribution remain out of scope. Other unmapped live routes return
 `501 MSSQL_WORKFLOW_NOT_MAPPED` rather than falling back to SQLite.
 
 See **[PROCESS.md](PROCESS.md)** for the full flow diagram.

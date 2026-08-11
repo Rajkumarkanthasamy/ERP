@@ -35,7 +35,7 @@ PR clubbing / auto-split limit: **₹12,00,000** per vendor pack.
 | PR | `PurchaseRequest`, `PurchaseRequestDetailNew` |
 | Clubbing | same + marks source PRs `Clubbed` |
 | PO | `PurchaseOrder` |
-| GRN | `ProcurementGRN`, `ProcurementGRNDetail` (+ optional legacy `Receipt`) |
+| GRN | `ProcurementGRN`, `ProcurementGRNDetail`, `JobMovement`, `Receipt`, `ERPInventoryLogs`, `ItemMaster`, `ERPTransactionLog` |
 | Masters | `CityMaster`/`StateMaster`, `CustomerMaster`, `Vendors`, `ItemMaster`, `ItemStdCostHistory` |
 | Gate | `SecurityInward`, `SecurityOutward`, `ERPTransactionLog` |
 
