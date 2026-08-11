@@ -10,6 +10,13 @@ import * as legacy from '../services/mssqlLegacyService.js';
 import * as processSvc from '../services/mssqlProcessService.js';
 
 const router = Router();
+const PO_STEP_ROLE = {
+  pm: 'isPm',
+  mh: 'isMh',
+  pc: 'isPc',
+  om: 'isOm',
+  gm: 'isGm',
+};
 router.use(
   authRequired,
   requireAnyLegacyPermission(
@@ -52,7 +59,13 @@ router.get('/approvals', authRequired, async (_req, res) => {
   try {
     if (isMssqlMode()) {
       const data = await legacy.listPurchaseOrders({});
-      return res.json(data.items.filter((p) => !p.poApproved));
+      return res.json(
+        data.items.filter(
+          (po) =>
+            !po.poApproved &&
+            !['Rejected', 'Cancelled', 'Closed'].includes(po.status)
+        )
+      );
     }
     res.json(poService.listPOsForApproval());
   } catch (err) {
@@ -98,14 +111,36 @@ router.get('/:poRef', authRequired, async (req, res) => {
   }
 });
 
-router.post('/:poRef/approve', authRequired, requirePermission('canApprovePO'), async (req, res) => {
+router.post('/:poRef/approve', authRequired, async (req, res) => {
   try {
-    if (isMssqlMode()) {
-      return res.json(await processSvc.approvePO(req.params.poRef, { ...req.body, user: req.user }));
+    const step = req.body?.step || (req.body?.action === 'reject' ? 'reject' : null);
+    if (!step) {
+      return res.status(400).json({
+        error: 'Approval step is required (pm, mh, pc, om, gm, generate, send, or reject)',
+      });
     }
-    res.json(poService.approvePO(req.params.poRef, { ...req.body, user: req.user }));
+    if (['generate', 'send'].includes(step)) {
+      if (!req.user?.canGeneratePO) {
+        return res.status(403).json({ error: 'Missing permission: canGeneratePO' });
+      }
+    } else {
+      if (!req.user?.canApprovePO) {
+        return res.status(403).json({ error: 'Missing permission: canApprovePO' });
+      }
+      const roleFlag = PO_STEP_ROLE[step];
+      if (roleFlag && !req.user?.[roleFlag]) {
+        return res.status(403).json({
+          error: `The ${step.toUpperCase()} approval role is required for this step`,
+        });
+      }
+    }
+    const payload = { ...req.body, step, user: req.user };
+    if (isMssqlMode()) {
+      return res.json(await processSvc.approvePO(req.params.poRef, payload));
+    }
+    return res.json(poService.approvePO(req.params.poRef, payload));
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    return res.status(400).json({ error: err.message });
   }
 });
 

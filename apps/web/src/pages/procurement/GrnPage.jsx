@@ -73,18 +73,49 @@ export default function GrnPage() {
       .filter((x) => x.checked)
       .map((x) => ({
         poRef: x.line.poRef,
-        detailId: x.line.detailId || x.line.id,
+        poId: x.line.poId || x.line.id,
+        vendorCode: x.line.vendorCode,
+        projectCode: x.line.projectCode,
         itemCode: x.line.itemCode,
-        quantity: Number(x.qty),
+        receivedQty: Number(x.qty),
+        remainingQty: Number(x.line.remainingQty ?? x.line.requiredQty ?? 0),
       }));
     if (!lines.length) {
       error('Select at least one PO line');
       return;
     }
+    if (
+      lines.some(
+        (line) =>
+          !line.poId ||
+          line.receivedQty <= 0 ||
+          line.receivedQty > line.remainingQty
+      )
+    ) {
+      error('Receipt quantity must be positive and cannot exceed the remaining PO quantity');
+      return;
+    }
     setBusy(true);
     try {
-      const res = await apiPost('/grns', { invoiceNo, remarks, lines });
-      success(`GRN ${res?.grnNumber || ''} created`);
+      const byPo = new Map();
+      lines.forEach((line) => {
+        if (!byPo.has(line.poRef)) byPo.set(line.poRef, []);
+        byPo.get(line.poRef).push(line);
+      });
+      const created = [];
+      for (const [poRef, poLines] of byPo) {
+        const first = poLines[0];
+        const res = await apiPost('/grns', {
+          poRef,
+          vendorCode: first.vendorCode,
+          projectCode: first.projectCode,
+          invoiceNo,
+          remarks,
+          lines: poLines.map(({ poId, receivedQty }) => ({ poId, receivedQty })),
+        });
+        created.push(res?.grnNumber);
+      }
+      success(`GRN ${created.filter(Boolean).join(', ')} created`);
       setDialogOpen(false);
       await load();
     } catch (err) {

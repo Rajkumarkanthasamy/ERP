@@ -85,6 +85,17 @@ export default function PrGenerationPage() {
       error('Project, vendor and at least one line are required');
       return;
     }
+    if (
+      form.lines.some(
+        (line) =>
+          !line.itemCode ||
+          Number(line.quantity) <= 0 ||
+          Number(line.unitCost) < 0
+      )
+    ) {
+      error('Every line requires an item, positive quantity, and valid unit cost');
+      return;
+    }
     setSaving(true);
     try {
       const vendor = vendors.find((v) => v.vendorCode === form.vendorCode);
@@ -97,12 +108,15 @@ export default function PrGenerationPage() {
         remarks: form.remarks,
         lines: form.lines.map((l) => ({
           ...l,
+          vendorCode: form.vendorCode,
+          vendorName: vendor?.vendorName,
           totalCost: Number(l.quantity || 0) * Number(l.unitCost || 0),
         })),
       };
       const res = await apiPost('/prs', payload);
-      const created = Array.isArray(res) ? res.map((r) => r.prNumber).join(', ') : res?.prNumber || 'PR';
-      success(`Created ${created}`);
+      const createdRows = Array.isArray(res) ? res : res?.created || [];
+      const createdNumbers = createdRows.map((row) => row.prNumber).filter(Boolean);
+      success(`Created ${createdNumbers.join(', ') || res?.prNumber || 'PR'}`);
       setForm({ projectCode: form.projectCode, vendorCode: form.vendorCode, remarks: '', lines: [emptyLine()] });
     } catch (err) {
       error(err.message);

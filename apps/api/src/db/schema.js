@@ -177,6 +177,7 @@ export function applySchema(db) {
       po_ref TEXT,
       vendor_code TEXT,
       project_code TEXT,
+      invoice_no TEXT,
       received_by TEXT,
       received_date TEXT DEFAULT (datetime('now')),
       status TEXT DEFAULT 'Received',
@@ -678,4 +679,5 @@ export function applySchema(db) {
   ensureColumn(db, 'projects', 'installation_status', "TEXT DEFAULT 'Not Started'");
   ensureColumn(db, 'projects', 'shipment_date', 'TEXT');
   ensureColumn(db, 'projects', 'remarks', 'TEXT');
+  ensureColumn(db, 'procurement_grn', 'invoice_no', 'TEXT');
 }

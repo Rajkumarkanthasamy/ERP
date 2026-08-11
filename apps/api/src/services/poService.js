@@ -4,6 +4,7 @@ import {
   PR_STATUS,
   computePoAmounts,
   computePoStatus,
+  getNextPoApprovalStep,
   PO_STATUS_OPTIONS,
   VARIANCE,
 } from '../constants.js';
@@ -19,6 +20,13 @@ function groupByPoRef(rows) {
   return [...map.entries()].map(([poRef, lines]) => {
     const amounts = computePoAmounts(lines);
     const status = computePoStatus({ lines });
+    const approval = {
+      pmApproved: !!lines[0].pm_approved,
+      mhApproved: !!lines[0].mh_approved,
+      pcApproved: !!lines[0].pc_approved,
+      omApproved: !!lines[0].om_approved,
+      gmApproved: !!lines[0].gm_approved,
+    };
     return {
       poRef,
       status,
@@ -32,11 +40,11 @@ function groupByPoRef(rows) {
       poApproved: !!lines[0].po_approved,
       poGeneratedBy: lines[0].po_generated_by,
       poGeneratedDate: lines[0].po_generated_date,
-      pmApproved: !!lines[0].pm_approved,
-      mhApproved: !!lines[0].mh_approved,
-      pcApproved: !!lines[0].pc_approved,
-      omApproved: !!lines[0].om_approved,
-      gmApproved: !!lines[0].gm_approved,
+      ...approval,
+      nextStep: getNextPoApprovalStep({
+        ...approval,
+        approvalTier: amounts.approvalTier,
+      }),
       lineCount: lines.length,
       lines: lines.map(mapLine),
     };
@@ -266,12 +274,19 @@ export function convertPRsToPO({ prNumbers, lineIds, gstMode = 'cgst_sgst', user
 export function listPOsForApproval() {
   const db = getDb();
   const rows = db
-    .prepare(`SELECT * FROM purchase_orders WHERE IFNULL(po_approved,0) = 0 ORDER BY po_ref, id`)
+    .prepare(
+      `SELECT * FROM purchase_orders
+       WHERE IFNULL(po_approved, 0) = 0
+         AND IFNULL(final_status, '') <> 'Rejected'
+         AND cancelled_by IS NULL
+         AND closed_by IS NULL
+       ORDER BY po_ref, id`
+    )
     .all();
   return groupByPoRef(rows);
 }
 
-export function approvePO(poRef, { step, remarks, user }) {
+export function approvePO(poRef, { step, action, remarks, user }) {
   const db = getDb();
   const lines = db.prepare('SELECT * FROM purchase_orders WHERE po_ref = ?').all(poRef);
   if (!lines.length) throw new Error('PO not found');
@@ -279,9 +294,24 @@ export function approvePO(poRef, { step, remarks, user }) {
 
   const amounts = computePoAmounts(lines);
   const first = lines[0];
+  const approvalStep =
+    step ||
+    (action === 'reject'
+      ? 'reject'
+      : action === 'approve'
+        ? getNextPoApprovalStep({
+            pmApproved: !!first.pm_approved,
+            mhApproved: !!first.mh_approved,
+            pcApproved: !!first.pc_approved,
+            omApproved: !!first.om_approved,
+            gmApproved: !!first.gm_approved,
+            approvalTier: amounts.approvalTier,
+          })
+        : null);
+  if (!approvalStep) throw new Error('PO has no pending approval step');
 
   const tx = db.transaction(() => {
-    if (step === 'reject') {
+    if (approvalStep === 'reject') {
       db.prepare(
         `UPDATE purchase_orders SET reject_reason = ?, final_status = 'Rejected', modified_at = datetime('now')
          WHERE po_ref = ?`
@@ -290,20 +320,20 @@ export function approvePO(poRef, { step, remarks, user }) {
       return;
     }
 
-    if (step === 'pm') {
+    if (approvalStep === 'pm') {
       if (first.pm_approved) throw new Error('PM already approved');
       db.prepare(
         `UPDATE purchase_orders SET pm_name = ?, pm_approved = 1, pm_approved_date = datetime('now'), modified_at = datetime('now')
          WHERE po_ref = ?`
       ).run(user.displayName || user.username, poRef);
-    } else if (step === 'mh') {
+    } else if (approvalStep === 'mh') {
       if (!first.pm_approved) throw new Error('PM approval required first');
       if (first.mh_approved) throw new Error('MH already approved');
       db.prepare(
         `UPDATE purchase_orders SET mh_name = ?, mh_approved = 1, mh_approved_date = datetime('now'), modified_at = datetime('now')
          WHERE po_ref = ?`
       ).run(user.displayName || user.username, poRef);
-    } else if (step === 'pc') {
+    } else if (approvalStep === 'pc') {
       if (!first.pm_approved || !first.mh_approved) throw new Error('PM and MH approval required first');
       if (first.pc_approved) throw new Error('PC already approved');
       const finalize = amounts.approvalTier === 'PC';
@@ -326,7 +356,7 @@ export function approvePO(poRef, { step, remarks, user }) {
         finalize ? 1 : 0,
         poRef
       );
-    } else if (step === 'om') {
+    } else if (approvalStep === 'om') {
       if (!first.pc_approved) throw new Error('PC approval required first');
       if (amounts.approvalTier === 'PC') throw new Error('OM not required for this PO amount');
       if (first.om_approved) throw new Error('OM already approved');
@@ -350,7 +380,7 @@ export function approvePO(poRef, { step, remarks, user }) {
         finalize ? 1 : 0,
         poRef
       );
-    } else if (step === 'gm') {
+    } else if (approvalStep === 'gm') {
       if (amounts.approvalTier !== 'GM') throw new Error('GM not required for this PO amount');
       if (!first.om_approved) throw new Error('OM approval required first');
       db.prepare(
@@ -360,13 +390,13 @@ export function approvePO(poRef, { step, remarks, user }) {
           final_status = 'Approved', modified_at = datetime('now')
          WHERE po_ref = ?`
       ).run(user.displayName || user.username, user.displayName || user.username, poRef);
-    } else if (step === 'generate') {
+    } else if (approvalStep === 'generate') {
       if (!first.po_approved) throw new Error('PO must be fully approved before generate');
       db.prepare(
         `UPDATE purchase_orders SET po_generated_by = ?, po_generated_date = datetime('now'), modified_at = datetime('now')
          WHERE po_ref = ?`
       ).run(user.displayName || user.username, poRef);
-    } else if (step === 'send') {
+    } else if (approvalStep === 'send') {
       if (!first.po_generated_by) throw new Error('Generate PO first');
       db.prepare(
         `UPDATE purchase_orders SET po_sent_to_vendor_by = ?, po_sent_vendor_date = datetime('now'), modified_at = datetime('now')
@@ -379,7 +409,7 @@ export function approvePO(poRef, { step, remarks, user }) {
     logActivity({
       entityType: 'PO',
       entityRef: poRef,
-      action: step,
+      action: approvalStep,
       details: remarks || amounts.approvalTier,
       byUser: user.username,
     });
@@ -396,7 +426,7 @@ export function getPO(poRef) {
   return groupByPoRef(rows)[0];
 }
 
-export function listPOStatus({ status, poNumber, vendor, project, from, to } = {}) {
+export function listPOStatus({ status, poNumber, vendor, project, q, from, to } = {}) {
   const db = getDb();
   const where = ['1=1'];
   const params = [];
@@ -411,6 +441,12 @@ export function listPOStatus({ status, poNumber, vendor, project, from, to } = {
   if (project) {
     where.push('project_code LIKE ?');
     params.push(`%${project}%`);
+  }
+  if (q) {
+    where.push(
+      '(po_ref LIKE ? OR vendor_code LIKE ? OR IFNULL(vendor_name, "") LIKE ? OR project_code LIKE ?)'
+    );
+    params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
   }
   if (from) {
     where.push("date(prepared_date) >= date(?)");

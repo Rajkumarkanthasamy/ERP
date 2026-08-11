@@ -29,23 +29,50 @@ function nextGrnNumber() {
   return `${prefix}${String(n).padStart(5, '0')}`;
 }
 
-export function createGRN({ poRef, vendorCode, projectCode, remarks, lines, user }) {
+export function createGRN({
+  poRef,
+  vendorCode,
+  projectCode,
+  invoiceNo,
+  remarks,
+  lines,
+  user,
+}) {
   if (!lines?.length) throw new Error('No lines to receive');
   const db = getDb();
+  const normalizedLines = lines
+    .map((line) => ({
+      ...line,
+      poId: line.poId ?? line.detailId ?? line.id,
+      receivedQty: Number(line.receivedQty ?? line.quantity ?? 0),
+    }))
+    .filter((line) => line.receivedQty > 0);
+  if (!normalizedLines.length) throw new Error('At least one positive receipt quantity is required');
+  if (normalizedLines.some((line) => !line.poId)) {
+    throw new Error('Every GRN line requires a PO line identifier');
+  }
+  const firstPo = db
+    .prepare('SELECT * FROM purchase_orders WHERE id = ?')
+    .get(normalizedLines[0].poId);
+  if (!firstPo) throw new Error(`PO line ${normalizedLines[0].poId} not found`);
+  const resolvedPoRef = poRef || firstPo.po_ref;
+  const resolvedVendorCode = vendorCode || firstPo.vendor_code;
+  const resolvedProjectCode = projectCode || firstPo.project_code;
   const grnNumber = nextGrnNumber();
 
   const tx = db.transaction(() => {
     const info = db
       .prepare(
         `INSERT INTO procurement_grn
-          (grn_number, po_ref, vendor_code, project_code, received_by, remarks, created_by, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'Received')`
+          (grn_number, po_ref, vendor_code, project_code, invoice_no, received_by, remarks, created_by, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Received')`
       )
       .run(
         grnNumber,
-        poRef || null,
-        vendorCode || null,
-        projectCode || null,
+        resolvedPoRef,
+        resolvedVendorCode || null,
+        resolvedProjectCode || null,
+        invoiceNo || null,
         user.displayName || user.username,
         remarks || null,
         user.username
@@ -57,11 +84,13 @@ export function createGRN({ poRef, vendorCode, projectCode, remarks, lines, user
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    for (const line of lines) {
-      const recvQty = Number(line.receivedQty || 0);
-      if (recvQty <= 0) continue;
+    for (const line of normalizedLines) {
+      const recvQty = line.receivedQty;
       const po = db.prepare('SELECT * FROM purchase_orders WHERE id = ?').get(line.poId);
       if (!po) throw new Error(`PO line ${line.poId} not found`);
+      if (po.po_ref !== resolvedPoRef) {
+        throw new Error('A GRN can only receive lines from one purchase order');
+      }
       const remaining = Number(po.remaining_qty ?? po.required_qty);
       if (recvQty > remaining) throw new Error(`Received qty exceeds remaining for ${po.item_code}`);
 
@@ -97,7 +126,7 @@ export function createGRN({ poRef, vendorCode, projectCode, remarks, lines, user
       entityType: 'GRN',
       entityRef: grnNumber,
       action: 'Received',
-      details: `PO ${poRef || ''}`,
+      details: `PO ${resolvedPoRef}`,
       byUser: user.username,
     });
   });
@@ -112,7 +141,9 @@ export function listGRNs() {
     .prepare(
       `SELECT id, grn_number AS grnNumber, po_ref AS poRef, vendor_code AS vendorCode,
               project_code AS projectCode, received_by AS receivedBy, received_date AS receivedDate,
-              status, remarks
+              invoice_no AS invoiceNo, status, remarks,
+              (SELECT IFNULL(SUM(d.amount), 0) FROM procurement_grn_details d
+               WHERE d.grn_number = procurement_grn.grn_number) AS totalAmount
        FROM procurement_grn ORDER BY id DESC`
     )
     .all();
@@ -124,7 +155,7 @@ export function getGRN(grnNumber) {
     .prepare(
       `SELECT id, grn_number AS grnNumber, po_ref AS poRef, vendor_code AS vendorCode,
               project_code AS projectCode, received_by AS receivedBy, received_date AS receivedDate,
-              status, remarks
+              invoice_no AS invoiceNo, status, remarks
        FROM procurement_grn WHERE grn_number = ?`
     )
     .get(grnNumber);

@@ -17,9 +17,10 @@ import PageHeader from '../../components/PageHeader';
 import LoadingBlock from '../../components/LoadingBlock';
 import EmptyState from '../../components/EmptyState';
 import StatusChip from '../../components/StatusChip';
-import { apiGet } from '../../api/client';
+import { apiGet, apiPost } from '../../api/client';
 import { formatDate, formatINR } from '../../utils/format';
 import { useSnackbar } from '../../components/SnackbarProvider';
+import { useAuth } from '../../auth/AuthContext';
 
 const STATUS_OPTIONS = [
   'All',
@@ -34,20 +35,25 @@ const STATUS_OPTIONS = [
   'Sent to Vendor',
   'Partially Received',
   'Fully Received',
+  'Rejected',
+  'Closed',
+  'Cancelled',
 ];
 
 export default function PoStatusViewPage() {
-  const { error } = useSnackbar();
+  const { success, error } = useSnackbar();
+  const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [status, setStatus] = useState('All');
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
+  const [busyRef, setBusyRef] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const data = await apiGet('/pos/status', { status, q });
-      setRows(Array.isArray(data) ? data : []);
+      setRows(Array.isArray(data) ? data : data?.items || []);
     } catch (err) {
       error(err.message);
       setRows([]);
@@ -59,6 +65,23 @@ export default function PoStatusViewPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const advance = async (po, step) => {
+    setBusyRef(po.poRef);
+    try {
+      await apiPost(`/pos/${encodeURIComponent(po.poRef)}/approve`, { step });
+      success(
+        step === 'generate'
+          ? `${po.poRef} generated`
+          : `${po.poRef} marked as sent to vendor`
+      );
+      await load();
+    } catch (err) {
+      error(err.message);
+    } finally {
+      setBusyRef('');
+    }
+  };
 
   return (
     <Box>
@@ -101,6 +124,7 @@ export default function PoStatusViewPage() {
                 <TableCell>Amount</TableCell>
                 <TableCell>Prepared</TableCell>
                 <TableCell>Status</TableCell>
+                <TableCell align="right">Action</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -113,6 +137,28 @@ export default function PoStatusViewPage() {
                   <TableCell>{formatDate(po.preparedDate)}</TableCell>
                   <TableCell>
                     <StatusChip status={po.status} />
+                  </TableCell>
+                  <TableCell align="right">
+                    {user?.canGeneratePO && po.status === 'Ready to Generate' && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        disabled={busyRef === po.poRef}
+                        onClick={() => advance(po, 'generate')}
+                      >
+                        Generate
+                      </Button>
+                    )}
+                    {user?.canGeneratePO && po.status === 'PO Generated' && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        disabled={busyRef === po.poRef}
+                        onClick={() => advance(po, 'send')}
+                      >
+                        Send to vendor
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

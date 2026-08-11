@@ -23,11 +23,14 @@ router.get('/', authRequired, async (_req, res) => {
       try {
         const result = await mssqlQuery(`
           SELECT TOP 100
-            GRNID AS id, GRNNumber AS grnNumber, PORef AS poRef, VendorCode AS vendorCode,
-            ProjectCode AS projectCode, ReceivedBy AS receivedBy, ReceivedDate AS receivedDate,
-            Status AS status, Remarks AS remarks
-          FROM ProcurementGRN
-          ORDER BY GRNID DESC
+            g.GRNID AS id, g.GRNNumber AS grnNumber, g.PORef AS poRef,
+            g.VendorCode AS vendorCode, g.ProjectCode AS projectCode,
+            g.InvoiceNo AS invoiceNo, g.ReceivedBy AS receivedBy,
+            g.ReceivedDate AS receivedDate, g.Status AS status, g.Remarks AS remarks,
+            ISNULL((SELECT SUM(d.Amount) FROM ProcurementGRNDetail d
+                    WHERE d.GRNNumber = g.GRNNumber), 0) AS totalAmount
+          FROM ProcurementGRN g
+          ORDER BY g.GRNID DESC
         `);
         return res.json(result.recordset);
       } catch (err) {
@@ -49,7 +52,8 @@ router.get('/:grnNumber', authRequired, async (req, res) => {
       const header = await mssqlQuery(
         `
         SELECT GRNID AS id, GRNNumber AS grnNumber, PORef AS poRef, VendorCode AS vendorCode,
-               ProjectCode AS projectCode, ReceivedBy AS receivedBy, ReceivedDate AS receivedDate,
+               ProjectCode AS projectCode, InvoiceNo AS invoiceNo,
+               ReceivedBy AS receivedBy, ReceivedDate AS receivedDate,
                Status AS status, Remarks AS remarks
         FROM ProcurementGRN WHERE GRNNumber = @GRN
         `,

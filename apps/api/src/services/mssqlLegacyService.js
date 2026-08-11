@@ -1,4 +1,10 @@
 import { mssqlQuery } from '../db/mssql.js';
+import {
+  PO_STATUS_OPTIONS,
+  computePoAmounts,
+  computePoStatus,
+  getNextPoApprovalStep,
+} from '../constants.js';
 
 /** Read helpers against existing ERP_Database tables used by the C# app. */
 
@@ -120,7 +126,7 @@ export async function getPurchaseRequest(prNumber) {
   return { ...header.recordset[0], lines };
 }
 
-export async function listPurchaseOrders({ status, poNumber, vendor, project } = {}) {
+export async function listPurchaseOrders({ status, poNumber, vendor, project, q } = {}) {
   const where = ['1=1'];
   const params = {};
   if (poNumber) {
@@ -134,6 +140,12 @@ export async function listPurchaseOrders({ status, poNumber, vendor, project } =
   if (project) {
     where.push('po.ProjectCode LIKE @project');
     params.project = `%${project}%`;
+  }
+  if (q) {
+    where.push(
+      `(po.DBOMNo LIKE @q OR po.VendorCode LIKE @q OR ISNULL(v.VendorName, '') LIKE @q OR po.ProjectCode LIKE @q)`
+    );
+    params.q = `%${q}%`;
   }
 
   const result = await mssqlQuery(
@@ -157,11 +169,20 @@ export async function listPurchaseOrders({ status, poNumber, vendor, project } =
       ISNULL(po.POApproved,0) AS poApproved,
       po.PMApproved AS pmApproved,
       po.MHApproved AS mhApproved,
+      CASE
+        WHEN NULLIF(po.PurchaseCommitee, '') IS NOT NULL
+          OR NULLIF(po.PCAuthoriseDate, '') IS NOT NULL THEN 1
+        ELSE 0
+      END AS pcApproved,
       po.OMApproved AS omApproved,
       po.GMCostApproved AS gmApproved,
       po.POGeneratedBy AS poGeneratedBy,
       po.POGeneratedDate AS poGeneratedDate,
       po.POSenttoVendorBy AS poSentToVendorBy,
+      po.FinalStatus AS finalStatus,
+      po.RejectReason AS rejectReason,
+      po.CancelledBy AS cancelledBy,
+      po.ClosedBy AS closedBy,
       po.PreparedBy AS preparedBy,
       po.POPreparedDate AS preparedDate
     FROM PurchaseOrder po
@@ -186,6 +207,7 @@ export async function listPurchaseOrders({ status, poNumber, vendor, project } =
         poApproved: !!row.poApproved,
         pmApproved: !!row.pmApproved,
         mhApproved: !!row.mhApproved,
+        pcApproved: !!row.pcApproved,
         omApproved: !!row.omApproved,
         gmApproved: !!row.gmApproved,
         poGeneratedBy: row.poGeneratedBy,
@@ -205,25 +227,70 @@ export async function listPurchaseOrders({ status, poNumber, vendor, project } =
     g.totalAmount = g.baseAmount + g.gstAmount;
   }
 
-  let items = [...map.values()];
+  let items = [...map.values()].map((group) => {
+    const amounts = computePoAmounts(group.lines);
+    const approval = {
+      pmApproved: group.pmApproved,
+      mhApproved: group.mhApproved,
+      pcApproved: group.pcApproved,
+      omApproved: group.omApproved,
+      gmApproved: group.gmApproved,
+    };
+    return {
+      ...group,
+      ...amounts,
+      status: computePoStatus(group),
+      nextStep: getNextPoApprovalStep({
+        ...approval,
+        approvalTier: amounts.approvalTier,
+      }),
+    };
+  });
   if (status && status !== 'All') {
-    // Soft filter — keep all if status computation differs
-    items = items.filter((g) => {
-      if (status === 'Ready to Generate') return g.poApproved && !g.poGeneratedBy;
-      if (status === 'PO Generated') return !!g.poGeneratedBy;
-      return true;
-    });
+    items = items.filter((group) => group.status === status);
   }
   return {
-    statusOptions: [
-      'All',
-      'Ready to Generate',
-      'PO Generated',
-      'Pending PM / Dept Approval',
-      'Pending MH Approval',
-    ],
+    statusOptions: PO_STATUS_OPTIONS,
     items,
   };
+}
+
+export async function listProjects(q) {
+  const where = [];
+  const params = {};
+  if (q) {
+    where.push(
+      `(ProjectCode LIKE @q OR ISNULL(ProjectDescription, '') LIKE @q OR ISNULL(Customer, '') LIKE @q)`
+    );
+    params.q = `%${q}%`;
+  }
+  const result = await mssqlQuery(
+    `
+    SELECT TOP 1000
+      Id AS id,
+      ProjectCode AS projectCode,
+      ProjectDescription AS projectName,
+      SystemSubType AS productNo,
+      CustomerCode AS customerCode,
+      Customer AS customerName,
+      Status AS status,
+      ProjectInstallStatus AS installationStatus,
+      ShipmentDate AS shipmentDate,
+      DateCreated AS startDate,
+      Remarks AS remarks,
+      ApprovedBy AS approvedBy,
+      ApprovedDate AS approvedDate,
+      CASE
+        WHEN NULLIF(ApprovedBy, '') IS NULL THEN 'Pending'
+        ELSE 'Approved'
+      END AS approvalStatus
+    FROM ProjectMaster
+    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+    ORDER BY Id DESC
+    `,
+    params
+  );
+  return result.recordset;
 }
 
 export async function listVendors() {

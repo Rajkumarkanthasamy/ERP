@@ -45,6 +45,7 @@ BEGIN
         PORef         NVARCHAR(64) NULL,
         VendorCode    NVARCHAR(64) NULL,
         ProjectCode   NVARCHAR(64) NULL,
+        InvoiceNo     NVARCHAR(100) NULL,
         ReceivedBy    NVARCHAR(64) NULL,
         ReceivedDate  DATETIME NOT NULL CONSTRAINT DF_GRN_Date DEFAULT GETDATE(),
         Status        NVARCHAR(30) NOT NULL CONSTRAINT DF_GRN_Status DEFAULT 'Received',
@@ -52,6 +53,12 @@ BEGIN
         CreatedBy     NVARCHAR(64) NULL,
         CreatedDate   DATETIME NOT NULL CONSTRAINT DF_GRN_Created DEFAULT GETDATE()
     );
+END
+GO
+
+IF COL_LENGTH('ProcurementGRN', 'InvoiceNo') IS NULL
+BEGIN
+    ALTER TABLE ProcurementGRN ADD InvoiceNo NVARCHAR(100) NULL;
 END
 GO
 

@@ -24,9 +24,19 @@ import StatusChip from '../../components/StatusChip';
 import { apiGet, apiPost } from '../../api/client';
 import { formatINR } from '../../utils/format';
 import { useSnackbar } from '../../components/SnackbarProvider';
+import { useAuth } from '../../auth/AuthContext';
+
+const STEP_LABELS = {
+  pm: 'PM / Department',
+  mh: 'Manufacturing Head',
+  pc: 'Purchase Committee',
+  om: 'Operations Manager',
+  gm: 'General Manager',
+};
 
 export default function PoApprovalPage() {
   const { success, error } = useSnackbar();
+  const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -50,15 +60,35 @@ export default function PoApprovalPage() {
     load();
   }, [load]);
 
-  const approve = async (action) => {
+  const canPerformStep = (step) => {
+    if (!step) return false;
+    const roleFlag = {
+      pm: 'isPm',
+      mh: 'isMh',
+      pc: 'isPc',
+      om: 'isOm',
+      gm: 'isGm',
+    }[step];
+    return Boolean(user?.canApprovePO && (!roleFlag || user?.[roleFlag]));
+  };
+
+  const approve = async (step) => {
     if (!selected) return;
+    if (step === 'reject' && !remarks.trim()) {
+      error('Rejection remarks are required');
+      return;
+    }
     setBusy(true);
     try {
       await apiPost(`/pos/${encodeURIComponent(selected.poRef)}/approve`, {
-        action,
+        step,
         remarks,
       });
-      success(`${selected.poRef} ${action}`);
+      success(
+        step === 'reject'
+          ? `${selected.poRef} rejected`
+          : `${selected.poRef} approved by ${STEP_LABELS[step] || step}`
+      );
       setSelected(null);
       setRemarks('');
       await load();
@@ -109,11 +139,19 @@ export default function PoApprovalPage() {
                   <TableCell>
                     <StatusChip status={po.status || 'Pending'} />
                   </TableCell>
-                  <TableCell>{po.approvalTier || '—'}</TableCell>
+                  <TableCell>
+                    {po.approvalTier || '—'} · {STEP_LABELS[po.nextStep] || 'Complete'}
+                  </TableCell>
                   <TableCell align="right">
-                    <Button size="small" variant="contained" onClick={() => setSelected(po)}>
-                      Review
-                    </Button>
+                    {canPerformStep(po.nextStep) ? (
+                      <Button size="small" variant="contained" onClick={() => setSelected(po)}>
+                        Review
+                      </Button>
+                    ) : (
+                      <Typography variant="caption" color="text.secondary">
+                        Awaiting {STEP_LABELS[po.nextStep] || 'approval'}
+                      </Typography>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -123,7 +161,9 @@ export default function PoApprovalPage() {
       )}
 
       <Dialog open={Boolean(selected)} onClose={() => setSelected(null)} fullWidth maxWidth="sm">
-        <DialogTitle>Approve PO {selected?.poRef}</DialogTitle>
+        <DialogTitle>
+          {STEP_LABELS[selected?.nextStep] || 'Approve'} — {selected?.poRef}
+        </DialogTitle>
         <DialogContent>
           <Stack spacing={1.5} sx={{ mt: 1 }}>
             <Typography>
@@ -145,8 +185,12 @@ export default function PoApprovalPage() {
           <Button color="error" disabled={busy} onClick={() => approve('reject')}>
             Reject
           </Button>
-          <Button variant="contained" disabled={busy} onClick={() => approve('approve')}>
-            Approve
+          <Button
+            variant="contained"
+            disabled={busy || !selected?.nextStep}
+            onClick={() => approve(selected?.nextStep)}
+          >
+            Approve {STEP_LABELS[selected?.nextStep] || ''}
           </Button>
         </DialogActions>
       </Dialog>

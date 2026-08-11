@@ -66,7 +66,8 @@ export default function PrToPoWorkspacePage() {
     setBusy(true);
     try {
       const res = await apiPost('/pos/convert', { prNumbers: selected });
-      success(`Created PO ${res?.poRef || ''}`);
+      const refs = res?.poRefs || (res?.poRef ? [res.poRef] : []);
+      success(`Created PO ${refs.join(', ')}`);
       await load();
     } catch (err) {
       error(err.message);

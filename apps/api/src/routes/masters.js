@@ -12,7 +12,7 @@ import { listLegacyUsers } from '../services/mssqlAuthService.js';
 
 const router = Router();
 const vendorAccess = requireAnyLegacyPermission('vendorMaster', 'purchaseOrder');
-const projectAccess = requireAnyLegacyPermission('projectMaster', 'createProject');
+const projectAccess = requireAnyLegacyPermission('projectMaster', 'createProject', 'purchaseOrder');
 const itemAccess = requireAnyLegacyPermission('partMaster', 'purchaseOrder', 'receipt', 'issue');
 const cityAccess = requireAnyLegacyPermission('cityMaster', 'customerMaster', 'vendorMaster');
 const customerAccess = requireAnyLegacyPermission('customerMaster', 'salesQuote', 'enquiryRegister');
@@ -46,14 +46,27 @@ router.put('/vendors/:code', authRequired, vendorAccess, requireSqliteMode, (req
   }
 });
 
-router.get('/projects', authRequired, projectAccess, requireSqliteMode, (req, res) => {
-  res.json(masterService.listProjects(req.query.q));
+router.get('/projects', authRequired, projectAccess, async (req, res) => {
+  try {
+    if (isMssqlMode()) return res.json(await legacy.listProjects(req.query.q));
+    return res.json(masterService.listProjects(req.query.q));
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
-router.get('/projects/:code', authRequired, projectAccess, requireSqliteMode, (req, res) => {
-  const project = masterService.getProject(req.params.code);
-  if (!project) return res.status(404).json({ error: 'Project not found' });
-  res.json(project);
+router.get('/projects/:code', authRequired, projectAccess, async (req, res) => {
+  try {
+    const project = isMssqlMode()
+      ? (await legacy.listProjects(req.params.code)).find(
+          (item) => item.projectCode === req.params.code
+        )
+      : masterService.getProject(req.params.code);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    return res.json(project);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/projects', authRequired, projectAccess, requireSqliteMode, (req, res) => {

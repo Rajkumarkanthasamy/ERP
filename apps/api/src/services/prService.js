@@ -141,12 +141,37 @@ function packByVendorLimit(lines) {
   return packs;
 }
 
-export function createPRs({ projectCode, productNo, lines, remarks, user }) {
+export function createPRs({
+  projectCode,
+  productNo,
+  vendorCode,
+  vendorName,
+  lines,
+  remarks,
+  user,
+}) {
   if (!projectCode) throw new Error('Project code is required');
   if (!lines?.length) throw new Error('At least one line item is required');
 
   const db = getDb();
-  const packs = packByVendorLimit(lines);
+  const normalizedLines = lines.map((line) => ({
+    ...line,
+    vendorCode: line.vendorCode || vendorCode,
+    vendorName: line.vendorName || vendorName,
+  }));
+  if (normalizedLines.some((line) => !line.vendorCode)) {
+    throw new Error('Vendor code is required for every PR line');
+  }
+  if (
+    normalizedLines.some(
+      (line) =>
+        !line.itemCode || Number(line.quantity) <= 0 || Number(line.unitCost) < 0
+    )
+  ) {
+    throw new Error('Every PR line requires an item, positive quantity, and valid unit cost');
+  }
+
+  const packs = packByVendorLimit(normalizedLines);
   const created = [];
 
   const tx = db.transaction(() => {
