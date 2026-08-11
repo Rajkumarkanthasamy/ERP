@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { authRequired, requireAnyLegacyPermission } from '../middleware/auth.js';
+import { requireSqliteMode } from '../middleware/dbMode.js';
 import * as qualityService from '../services/qualityService.js';
 
 const router = Router();
 router.use(authRequired, requireAnyLegacyPermission('qualityManagement'));
+router.use(requireSqliteMode);
 
 // Non-conformances
 router.get('/ncs', authRequired, (req, res) => {

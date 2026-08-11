@@ -4,10 +4,12 @@ import {
   requireAnyLegacyPermission,
   requirePermission,
 } from '../middleware/auth.js';
+import { requireSqliteMode } from '../middleware/dbMode.js';
 import * as indentService from '../services/indentService.js';
 
 const router = Router();
 router.use(authRequired, requireAnyLegacyPermission('indent'));
+router.use(requireSqliteMode);
 
 router.get('/', authRequired, (req, res) => {
   res.json(indentService.listIndents(req.query));

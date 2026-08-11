@@ -1,4 +1,5 @@
 import ResourcePage from '../../components/ResourcePage';
+import WorkflowActionButtons from '../../components/WorkflowActionButtons';
 
 export function NcPage() {
   return (
@@ -10,6 +11,7 @@ export function NcPage() {
       createEndpoint="/quality/ncs"
       createLabel="Raise NC"
       allowEdit
+      rowKey="ncNumber"
       columns={[
         { field: 'ncNumber', header: 'NC No', getValue: (r) => r.ncNumber || r.id },
         { field: 'description', header: 'Description' },
@@ -23,7 +25,42 @@ export function NcPage() {
         { name: 'itemCode', label: 'Item code' },
         { name: 'severity', label: 'Severity', options: ['Low', 'Medium', 'High', 'Critical'], defaultValue: 'Medium' },
         { name: 'description', label: 'Description', multiline: true, required: true },
+        { name: 'assignedTo', label: 'Assigned to' },
+        { name: 'correctiveAction', label: 'Corrective action', multiline: true, editOnly: true },
+        { name: 'remarks', label: 'Remarks', multiline: true },
       ]}
+      rowActions={(row, reload) => {
+        const actions =
+          row.status === 'Open'
+            ? [
+                { label: 'Assign', value: 'assign', variant: 'outlined' },
+                { label: 'Escalate', value: 'escalate', color: 'warning' },
+              ]
+            : ['In Progress', 'Escalated'].includes(row.status)
+              ? [
+                  {
+                    label: 'Close',
+                    value: 'close',
+                    variant: 'outlined',
+                    prompt: {
+                      label: 'Enter the corrective action',
+                      field: 'correctiveAction',
+                      fieldLabel: 'Corrective action',
+                      required: true,
+                    },
+                  },
+                ]
+              : row.status === 'Closed'
+                ? [{ label: 'Reopen', value: 'reopen' }]
+                : [];
+        return actions.length ? (
+          <WorkflowActionButtons
+            endpoint={`/quality/ncs/${encodeURIComponent(row.ncNumber)}/status`}
+            actions={actions}
+            onComplete={reload}
+          />
+        ) : null;
+      }}
     />
   );
 }
@@ -38,20 +75,47 @@ export function EscalationsPage() {
       createEndpoint="/quality/escalations"
       createLabel="Add escalation"
       allowEdit
+      rowKey="escalationNumber"
       columns={[
         { field: 'escalationNumber', header: 'Escalation', getValue: (r) => r.escalationNumber || r.id },
-        { field: 'ncNumber', header: 'NC Ref' },
+        { field: 'relatedRef', header: 'Related ref' },
         { field: 'title', header: 'Title', getValue: (r) => r.title || r.subject },
-        { field: 'level', header: 'Level' },
+        { field: 'priority', header: 'Priority', type: 'status' },
         { field: 'status', header: 'Status', type: 'status' },
         { field: 'createdAt', header: 'Date', type: 'datetime' },
       ]}
       fields={[
         { name: 'title', label: 'Title', required: true },
-        { name: 'ncNumber', label: 'NC number' },
-        { name: 'level', label: 'Level', options: ['L1', 'L2', 'L3'], defaultValue: 'L1' },
+        { name: 'relatedType', label: 'Related type', options: ['NC', 'Delivery', 'Project', 'Service'], defaultValue: 'NC' },
+        { name: 'relatedRef', label: 'Related reference' },
+        { name: 'projectCode', label: 'Project code' },
+        { name: 'priority', label: 'Priority', options: ['Low', 'Medium', 'High', 'Critical'], defaultValue: 'High' },
         { name: 'description', label: 'Description', multiline: true },
+        { name: 'assignedTo', label: 'Assigned to' },
+        { name: 'remarks', label: 'Remarks', multiline: true },
       ]}
+      rowActions={(row, reload) => {
+        const actions =
+          row.status === 'Open'
+            ? [{ label: 'Acknowledge', value: 'acknowledge', variant: 'outlined' }]
+            : row.status === 'In Progress'
+              ? [{ label: 'Resolve', value: 'resolve', variant: 'outlined' }]
+              : row.status === 'Resolved'
+                ? [
+                    { label: 'Close', value: 'close', variant: 'outlined' },
+                    { label: 'Reopen', value: 'reopen' },
+                  ]
+                : row.status === 'Closed'
+                  ? [{ label: 'Reopen', value: 'reopen' }]
+                  : [];
+        return actions.length ? (
+          <WorkflowActionButtons
+            endpoint={`/quality/escalations/${encodeURIComponent(row.escalationNumber)}/status`}
+            actions={actions}
+            onComplete={reload}
+          />
+        ) : null;
+      }}
     />
   );
 }

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authRequired, requireAnyLegacyPermission } from '../middleware/auth.js';
+import { requireSqliteMode } from '../middleware/dbMode.js';
 import * as serviceCallService from '../services/serviceCallService.js';
 
 const router = Router();
@@ -7,6 +8,7 @@ router.use(
   authRequired,
   requireAnyLegacyPermission('serviceQuote', 'projectMaster', 'projectWarranty')
 );
+router.use(requireSqliteMode);
 
 router.get('/', authRequired, (req, res) => {
   res.json(serviceCallService.listServiceCalls(req.query));

@@ -83,12 +83,15 @@ function mapProject(row) {
     productNo: row.product_no,
     status: row.status,
     customerCode: row.customer_code,
+    customerName: row.customer_name,
     pmName: row.pm_name,
     approvalStatus: row.approval_status,
     approvedBy: row.approved_by,
     approvedDate: row.approved_date,
     startDate: row.start_date,
     endDate: row.end_date,
+    installationStatus: row.installation_status,
+    shipmentDate: row.shipment_date,
     remarks: row.remarks,
   };
 }
@@ -103,36 +106,42 @@ export function upsertProject(payload, user) {
   const existing = db.prepare('SELECT id FROM projects WHERE project_code = ?').get(payload.projectCode);
   if (existing) {
     db.prepare(
-      `UPDATE projects SET project_name = ?, product_no = ?, status = ?, customer_code = ?, pm_name = ?,
-        start_date = ?, end_date = ?, remarks = ?
+      `UPDATE projects SET project_name = ?, product_no = ?, status = ?, customer_code = ?, customer_name = ?,
+        pm_name = ?, start_date = ?, end_date = ?, installation_status = ?, shipment_date = ?, remarks = ?
        WHERE project_code = ?`
     ).run(
       payload.projectName,
       payload.productNo || null,
       payload.status || 'Active',
       payload.customerCode || null,
+      payload.customerName || null,
       payload.pmName || null,
       payload.startDate || null,
       payload.endDate || null,
+      payload.installationStatus || 'Not Started',
+      payload.shipmentDate || null,
       payload.remarks || null,
       payload.projectCode
     );
   } else {
     db.prepare(
       `INSERT INTO projects (
-        project_code, project_name, product_no, status, customer_code, pm_name,
-        approval_status, start_date, end_date, remarks
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        project_code, project_name, product_no, status, customer_code, customer_name, pm_name,
+        approval_status, start_date, end_date, installation_status, shipment_date, remarks
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       payload.projectCode,
       payload.projectName,
       payload.productNo || null,
       payload.status || 'Draft',
       payload.customerCode || null,
+      payload.customerName || null,
       payload.pmName || null,
       payload.approvalStatus || 'Pending',
       payload.startDate || null,
       payload.endDate || null,
+      payload.installationStatus || 'Not Started',
+      payload.shipmentDate || null,
       payload.remarks || null
     );
     logActivity({

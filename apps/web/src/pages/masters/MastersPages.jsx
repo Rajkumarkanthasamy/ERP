@@ -10,6 +10,7 @@ export function CitiesPage() {
       createEndpoint="/masters/cities"
       createLabel="Add city"
       allowEdit
+      rowKey="cityCode"
       columns={[
         { field: 'cityCode', header: 'Code', getValue: (r) => r.cityCode || r.code },
         { field: 'cityName', header: 'City', getValue: (r) => r.cityName || r.name },
@@ -18,7 +19,7 @@ export function CitiesPage() {
         { field: 'active', header: 'Active', render: (v) => (v === 0 || v === false ? 'No' : 'Yes') },
       ]}
       fields={[
-        { name: 'cityCode', label: 'City code', required: true },
+        { name: 'cityCode', label: 'City code', required: true, disabledOnEdit: true },
         { name: 'cityName', label: 'City name', required: true },
         { name: 'state', label: 'State' },
         { name: 'country', label: 'Country', defaultValue: 'India' },
@@ -37,6 +38,7 @@ export function CustomersPage() {
       createEndpoint="/masters/customers"
       createLabel="Add customer"
       allowEdit
+      rowKey="customerCode"
       columns={[
         { field: 'customerCode', header: 'Code', getValue: (r) => r.customerCode || r.code },
         { field: 'customerName', header: 'Name', getValue: (r) => r.customerName || r.name },
@@ -46,7 +48,7 @@ export function CustomersPage() {
         { field: 'status', header: 'Status', type: 'status', getValue: (r) => r.status || (r.active === 0 ? 'Inactive' : 'Active') },
       ]}
       fields={[
-        { name: 'customerCode', label: 'Customer code', required: true },
+        { name: 'customerCode', label: 'Customer code', required: true, disabledOnEdit: true },
         { name: 'customerName', label: 'Customer name', required: true },
         { name: 'city', label: 'City' },
         { name: 'gstin', label: 'GSTIN' },
@@ -68,6 +70,7 @@ export function VendorsPage() {
       createEndpoint="/masters/vendors"
       createLabel="Add vendor"
       allowEdit
+      rowKey="vendorCode"
       columns={[
         { field: 'vendorCode', header: 'Code' },
         { field: 'vendorName', header: 'Name' },
@@ -76,7 +79,7 @@ export function VendorsPage() {
         { field: 'active', header: 'Active', render: (v) => (v === 0 || v === false ? 'No' : 'Yes') },
       ]}
       fields={[
-        { name: 'vendorCode', label: 'Vendor code', required: true },
+        { name: 'vendorCode', label: 'Vendor code', required: true, disabledOnEdit: true },
         { name: 'vendorName', label: 'Vendor name', required: true },
         { name: 'city', label: 'City' },
         { name: 'gstin', label: 'GSTIN' },
@@ -95,6 +98,7 @@ export function ItemsPage() {
       createEndpoint="/masters/items"
       createLabel="Add item"
       allowEdit
+      rowKey="itemCode"
       columns={[
         { field: 'itemCode', header: 'Code' },
         { field: 'itemDescription', header: 'Description' },
@@ -104,7 +108,7 @@ export function ItemsPage() {
         { field: 'latestPurchasePrice', header: 'Last PO', type: 'money' },
       ]}
       fields={[
-        { name: 'itemCode', label: 'Item code', required: true },
+        { name: 'itemCode', label: 'Item code', required: true, disabledOnEdit: true },
         { name: 'itemDescription', label: 'Description', required: true },
         { name: 'specification', label: 'Specification' },
         { name: 'make', label: 'Make' },
@@ -127,20 +131,25 @@ export function AssetsPage() {
       createEndpoint="/masters/assets"
       createLabel="Add asset"
       allowEdit
+      rowKey="assetCode"
       columns={[
         { field: 'assetCode', header: 'Asset', getValue: (r) => r.assetCode || r.assetSlNo },
-        { field: 'assetDescription', header: 'Description', getValue: (r) => r.assetDescription || r.description },
+        { field: 'assetName', header: 'Description' },
+        { field: 'category', header: 'Category' },
         { field: 'location', header: 'Location' },
-        { field: 'vendorName', header: 'Vendor' },
-        { field: 'amount', header: 'Amount', type: 'money' },
+        { field: 'purchaseValue', header: 'Purchase value', type: 'money' },
+        { field: 'currentValue', header: 'Current value', type: 'money' },
         { field: 'status', header: 'Status', type: 'status' },
       ]}
       fields={[
-        { name: 'assetCode', label: 'Asset code', required: true },
-        { name: 'assetDescription', label: 'Description', required: true },
+        { name: 'assetCode', label: 'Asset code', required: true, disabledOnEdit: true },
+        { name: 'assetName', label: 'Description', required: true },
+        { name: 'category', label: 'Category' },
         { name: 'location', label: 'Location' },
-        { name: 'vendorName', label: 'Vendor' },
-        { name: 'amount', label: 'Amount', type: 'number', defaultValue: 0 },
+        { name: 'purchaseDate', label: 'Purchase date', type: 'date' },
+        { name: 'purchaseValue', label: 'Purchase value', type: 'number', defaultValue: 0 },
+        { name: 'currentValue', label: 'Current value', type: 'number', defaultValue: 0 },
+        { name: 'status', label: 'Status', options: ['Active', 'Disposed', 'Under Maintenance'], defaultValue: 'Active' },
         { name: 'remarks', label: 'Remarks', multiline: true },
       ]}
     />
@@ -157,6 +166,7 @@ export function StandardCostPage() {
       allowCreate={false}
       allowEdit
       createEndpoint="/masters/items"
+      rowKey="itemCode"
       columns={[
         { field: 'itemCode', header: 'Item' },
         { field: 'itemDescription', header: 'Description' },
@@ -165,7 +175,7 @@ export function StandardCostPage() {
         { field: 'latestPurchasePrice', header: 'Last purchase', type: 'money' },
       ]}
       fields={[
-        { name: 'itemCode', label: 'Item code', required: true },
+        { name: 'itemCode', label: 'Item code', required: true, disabledOnEdit: true },
         { name: 'standardCost', label: 'Standard cost', type: 'number', required: true },
       ]}
     />
@@ -182,17 +192,23 @@ export function SalesProductsPage() {
       createEndpoint="/masters/sales-products"
       createLabel="Add product"
       allowEdit
+      rowKey="productCode"
       columns={[
         { field: 'productCode', header: 'Code' },
         { field: 'productName', header: 'Name' },
-        { field: 'productType', header: 'Type' },
-        { field: 'status', header: 'Status', type: 'status' },
+        { field: 'uom', header: 'UOM' },
+        { field: 'listPrice', header: 'List price', type: 'money' },
+        { field: 'pegRate', header: 'PEG rate', type: 'money' },
+        { field: 'isSparePart', header: 'Spare part', render: (v) => (v ? 'Yes' : 'No') },
       ]}
       fields={[
-        { name: 'productCode', label: 'Product code', required: true },
+        { name: 'productCode', label: 'Product code', required: true, disabledOnEdit: true },
         { name: 'productName', label: 'Product name', required: true },
-        { name: 'productType', label: 'Type', defaultValue: 'Machine' },
-        { name: 'status', label: 'Status', options: ['Active', 'Inactive'], defaultValue: 'Active' },
+        { name: 'description', label: 'Description', multiline: true },
+        { name: 'uom', label: 'UOM', defaultValue: 'NOS' },
+        { name: 'listPrice', label: 'List price', type: 'number', defaultValue: 0 },
+        { name: 'pegRate', label: 'PEG rate', type: 'number', defaultValue: 0 },
+        { name: 'isSparePart', label: 'Spare part', type: 'checkbox', defaultValue: false },
       ]}
     />
   );

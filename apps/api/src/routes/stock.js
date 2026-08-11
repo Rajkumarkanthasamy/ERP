@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authRequired, requireAnyLegacyPermission } from '../middleware/auth.js';
+import { requireSqliteMode } from '../middleware/dbMode.js';
 import * as stockService from '../services/stockService.js';
 
 const router = Router();
@@ -15,6 +16,7 @@ router.use(
     'kanbanStockAdjust'
   )
 );
+router.use(requireSqliteMode);
 
 function typedList(type) {
   return (req, res) => {

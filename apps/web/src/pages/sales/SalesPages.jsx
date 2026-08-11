@@ -1,4 +1,6 @@
 import ResourcePage from '../../components/ResourcePage';
+import WorkflowActionButtons from '../../components/WorkflowActionButtons';
+import { useAuth } from '../../auth/AuthContext';
 
 export function EnquiryRegisterPage() {
   return (
@@ -10,6 +12,7 @@ export function EnquiryRegisterPage() {
       createEndpoint="/sales/enquiries"
       createLabel="New enquiry"
       allowEdit
+      rowKey="enquiryNumber"
       columns={[
         { field: 'enquiryNumber', header: 'Enquiry', getValue: (r) => r.enquiryNumber || r.enquiryNo || r.id },
         { field: 'customerName', header: 'Customer', getValue: (r) => r.customerName || r.customerCode },
@@ -39,6 +42,7 @@ export function OpportunitiesPage() {
       createEndpoint="/sales/opportunities"
       createLabel="New opportunity"
       allowEdit
+      rowKey="opportunityNumber"
       columns={[
         { field: 'opportunityNumber', header: 'Opp No', getValue: (r) => r.opportunityNumber || r.opportunityNo || r.id },
         { field: 'customerName', header: 'Customer' },
@@ -57,6 +61,8 @@ export function OpportunitiesPage() {
 }
 
 export function QuotesPage() {
+  const { user } = useAuth();
+
   return (
     <ResourcePage
       title="Quotes"
@@ -66,21 +72,46 @@ export function QuotesPage() {
       createEndpoint="/sales/quotes"
       createLabel="New quote"
       allowEdit
+      rowKey="quoteNumber"
       columns={[
         { field: 'quoteNumber', header: 'Quote', getValue: (r) => r.quoteNumber || r.quoteNo || r.docNo || r.id },
         { field: 'customerName', header: 'Customer' },
-        { field: 'projectCode', header: 'Project' },
+        { field: 'opportunityNumber', header: 'Opportunity' },
         { field: 'totalAmount', header: 'Amount', type: 'money', getValue: (r) => r.totalAmount || r.amount },
         { field: 'quoteDate', header: 'Date', type: 'date', getValue: (r) => r.quoteDate || r.createdAt },
         { field: 'status', header: 'Status', type: 'status' },
       ]}
       fields={[
         { name: 'customerName', label: 'Customer', required: true },
-        { name: 'projectCode', label: 'Project code' },
+        { name: 'opportunityNumber', label: 'Opportunity number' },
+        { name: 'validUntil', label: 'Valid until', type: 'date' },
         { name: 'totalAmount', label: 'Amount', type: 'number', required: true },
-        { name: 'status', label: 'Status', options: ['Draft', 'Sent', 'Accepted', 'Rejected'], defaultValue: 'Draft' },
+        { name: 'currency', label: 'Currency', defaultValue: 'INR' },
         { name: 'remarks', label: 'Remarks', multiline: true },
       ]}
+      rowActions={(row, reload) => {
+        const actions =
+          row.status === 'Draft'
+            ? [{ label: 'Submit', value: 'submit', variant: 'outlined' }]
+            : row.status === 'Submitted' && user?.canApprovePR
+              ? [
+                  { label: 'Approve', value: 'approve', variant: 'outlined' },
+                  { label: 'Reject', value: 'reject', color: 'error' },
+                ]
+              : row.status === 'Approved'
+                ? [
+                    { label: 'Won', value: 'win', variant: 'outlined' },
+                    { label: 'Lost', value: 'lose', color: 'error' },
+                  ]
+                : [];
+        return actions.length ? (
+          <WorkflowActionButtons
+            endpoint={`/sales/quotes/${encodeURIComponent(row.quoteNumber)}/status`}
+            actions={actions}
+            onComplete={reload}
+          />
+        ) : null;
+      }}
     />
   );
 }

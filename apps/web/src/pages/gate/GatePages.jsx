@@ -9,6 +9,9 @@ const gateColumns = [
   { field: 'createdAt', header: 'Date', type: 'datetime', getValue: (r) => r.createdAt || r.entryDate },
   { field: 'status', header: 'Status', type: 'status' },
 ];
+const gateTypeFilter = [
+  { name: 'type', label: 'Type', options: ['Inward', 'Outward', 'Manual', 'All'] },
+];
 
 export function GateInwardPage() {
   return (
@@ -19,8 +22,11 @@ export function GateInwardPage() {
       endpoints={['/gate-entries']}
       createEndpoint="/gate-entries"
       createLabel="New inward"
+      allowEdit
+      rowKey="entryNumber"
       mapCreateBody={(form) => ({ ...form, entryType: 'Inward' })}
-      filters={[{ name: 'type', label: 'Type', options: ['Inward', 'Outward', 'Manual', 'All'] }]}
+      defaultFilters={{ type: 'Inward' }}
+      filters={gateTypeFilter}
       columns={gateColumns}
       fields={[
         { name: 'vehicleNo', label: 'Vehicle no', required: true },
@@ -42,7 +48,11 @@ export function GateOutwardPage() {
       endpoints={['/gate-entries']}
       createEndpoint="/gate-entries"
       createLabel="New outward"
+      allowEdit
+      rowKey="entryNumber"
       mapCreateBody={(form) => ({ ...form, entryType: 'Outward' })}
+      defaultFilters={{ type: 'Outward' }}
+      filters={gateTypeFilter}
       columns={gateColumns}
       fields={[
         { name: 'vehicleNo', label: 'Vehicle no', required: true },
@@ -64,7 +74,11 @@ export function ManualInwardPage() {
       endpoints={['/gate-entries']}
       createEndpoint="/gate-entries"
       createLabel="Manual inward"
+      allowEdit
+      rowKey="entryNumber"
       mapCreateBody={(form) => ({ ...form, entryType: 'Manual' })}
+      defaultFilters={{ type: 'Manual' }}
+      filters={gateTypeFilter}
       columns={gateColumns}
       fields={[
         { name: 'vehicleNo', label: 'Vehicle no' },

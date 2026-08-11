@@ -593,7 +593,7 @@ export function applySchema(db) {
     CREATE TABLE IF NOT EXISTS gate_entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       entry_number TEXT NOT NULL UNIQUE,
-      entry_type TEXT DEFAULT 'Inbound',
+      entry_type TEXT DEFAULT 'Inward',
       vehicle_no TEXT,
       transporter TEXT,
       vendor_code TEXT,
@@ -674,5 +674,7 @@ export function applySchema(db) {
   ensureColumn(db, 'projects', 'approved_date', 'TEXT');
   ensureColumn(db, 'projects', 'start_date', 'TEXT');
   ensureColumn(db, 'projects', 'end_date', 'TEXT');
+  ensureColumn(db, 'projects', 'installation_status', "TEXT DEFAULT 'Not Started'");
+  ensureColumn(db, 'projects', 'shipment_date', 'TEXT');
   ensureColumn(db, 'projects', 'remarks', 'TEXT');
 }

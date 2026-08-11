@@ -2,8 +2,8 @@ import { Router } from 'express';
 import {
   authRequired,
   requireAnyLegacyPermission,
-  requirePermission,
 } from '../middleware/auth.js';
+import { requireSqliteMode } from '../middleware/dbMode.js';
 import * as timesheetService from '../services/timesheetService.js';
 
 const router = Router();
@@ -11,6 +11,7 @@ router.use(
   authRequired,
   requireAnyLegacyPermission('timesheet', 'timesheetReports', 'validationTimesheet')
 );
+router.use(requireSqliteMode);
 
 router.get('/', authRequired, (req, res) => {
   res.json(timesheetService.listTimesheets(req.query));
@@ -38,7 +39,10 @@ router.put('/:entryNumber', authRequired, (req, res) => {
   }
 });
 
-router.post('/:entryNumber/status', authRequired, requirePermission('canApprovePR'), (req, res) => {
+router.post('/:entryNumber/status', authRequired, (req, res) => {
+  if (['approve', 'reject'].includes(req.body?.action) && !req.user?.canApprovePR) {
+    return res.status(403).json({ error: 'Missing permission: canApprovePR' });
+  }
   try {
     res.json(timesheetService.updateTimesheetStatus(req.params.entryNumber, { ...req.body, user: req.user }));
   } catch (err) {

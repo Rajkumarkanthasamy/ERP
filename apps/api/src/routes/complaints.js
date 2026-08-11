@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { authRequired, requireAnyLegacyPermission } from '../middleware/auth.js';
+import { requireSqliteMode } from '../middleware/dbMode.js';
 import * as complaintService from '../services/complaintService.js';
 
 const router = Router();
 router.use(authRequired, requireAnyLegacyPermission('complaint'));
+router.use(requireSqliteMode);
 
 router.get('/', authRequired, (req, res) => {
   res.json(complaintService.listComplaints(req.query));

@@ -4,10 +4,12 @@ import {
   requireAnyLegacyPermission,
   requirePermission,
 } from '../middleware/auth.js';
+import { requireSqliteMode } from '../middleware/dbMode.js';
 import * as workOrderService from '../services/workOrderService.js';
 
 const router = Router();
 router.use(authRequired, requireAnyLegacyPermission('workOrder'));
+router.use(requireSqliteMode);
 
 router.get('/', authRequired, (req, res) => {
   res.json(workOrderService.listWorkOrders(req.query));

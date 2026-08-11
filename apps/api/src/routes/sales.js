@@ -2,8 +2,8 @@ import { Router } from 'express';
 import {
   authRequired,
   requireAnyLegacyPermission,
-  requirePermission,
 } from '../middleware/auth.js';
+import { requireSqliteMode } from '../middleware/dbMode.js';
 import * as salesService from '../services/salesService.js';
 
 const router = Router();
@@ -19,6 +19,7 @@ router.use(
     'testingLabQuote'
   )
 );
+router.use(requireSqliteMode);
 
 // Enquiries
 router.get('/enquiries', authRequired, (req, res) => {
@@ -101,7 +102,10 @@ router.put('/quotes/:quoteNumber', authRequired, (req, res) => {
   }
 });
 
-router.post('/quotes/:quoteNumber/status', authRequired, requirePermission('canApprovePR'), (req, res) => {
+router.post('/quotes/:quoteNumber/status', authRequired, (req, res) => {
+  if (['approve', 'reject'].includes(req.body?.action) && !req.user?.canApprovePR) {
+    return res.status(403).json({ error: 'Missing permission: canApprovePR' });
+  }
   try {
     res.json(salesService.updateQuoteStatus(req.params.quoteNumber, { ...req.body, user: req.user }));
   } catch (err) {

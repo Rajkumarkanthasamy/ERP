@@ -27,13 +27,22 @@ function mapEntry(row) {
   };
 }
 
-export function listGateEntries({ status, q } = {}) {
+export function listGateEntries({ status, type, entryType, q } = {}) {
   const db = getDb();
   const where = ['1=1'];
   const params = [];
   if (status && status !== 'All') {
     where.push('status = ?');
     params.push(status);
+  }
+  const requestedType = entryType || type;
+  if (requestedType && requestedType !== 'All') {
+    if (requestedType === 'Inward') {
+      where.push("entry_type IN ('Inward', 'Inbound')");
+    } else {
+      where.push('entry_type = ?');
+      params.push(requestedType);
+    }
   }
   if (q) {
     where.push(
@@ -61,7 +70,7 @@ export function createGateEntry(payload, user) {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Open', ?, ?)`
   ).run(
     entryNumber,
-    payload.entryType || 'Inbound',
+    payload.entryType || 'Inward',
     payload.vehicleNo || null,
     payload.transporter || null,
     payload.vendorCode || null,

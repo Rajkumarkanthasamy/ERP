@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Button,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   IconButton,
+  FormControlLabel,
   MenuItem,
   Stack,
   Table,
@@ -59,24 +61,26 @@ export default function ResourcePage({
   mapCreateBody,
   mapUpdateBody,
   filters = [],
+  defaultFilters = {},
   transformRows,
   rowKey = 'id',
   allowCreate = true,
   allowEdit = false,
   allowDelete = false,
   extraActions,
+  rowActions,
   onRowClick,
 }) {
   const { success, error } = useSnackbar();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const [filterValues, setFilterValues] = useState({});
+  const [filterValues, setFilterValues] = useState(defaultFilters);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
-  const [loadError, setLoadError] = useState('');
+  const [loadError, setLoadError] = useState(null);
 
   const endpointKey = useMemo(() => (Array.isArray(endpoints) ? endpoints.join('|') : String(endpoints)), [endpoints]);
   const transformRef = useRef(transformRows);
@@ -85,7 +89,7 @@ export default function ResourcePage({
 
   const load = useCallback(async () => {
     setLoading(true);
-    setLoadError('');
+    setLoadError(null);
     try {
       const paths = endpointKey.split('|').filter(Boolean);
       const parsedFilters = JSON.parse(filterKey || '{}');
@@ -98,7 +102,7 @@ export default function ResourcePage({
       setRows(list);
     } catch (err) {
       setRows([]);
-      setLoadError(err.message || 'Unable to load data');
+      setLoadError(err);
     } finally {
       setLoading(false);
     }
@@ -121,22 +125,41 @@ export default function ResourcePage({
   const openEdit = (row) => {
     const initial = {};
     fields.forEach((f) => {
-      initial[f.name] = row[f.name] ?? row[f.source] ?? '';
+      const value = row[f.name] ?? row[f.source] ?? '';
+      initial[f.name] =
+        f.type === 'date' && value ? String(value).slice(0, 10) : value;
     });
     setEditing(row);
     setForm(initial);
     setDialogOpen(true);
   };
 
+  const getRowKey = (row) => (typeof rowKey === 'function' ? rowKey(row) : row[rowKey]);
+  const dialogFields = fields.filter((field) =>
+    editing ? !field.createOnly : !field.editOnly
+  );
+
   const save = async () => {
+    const missing = dialogFields.find((field) => {
+      if (!field.required) return false;
+      const value = form[field.name];
+      return value == null || (typeof value === 'string' && value.trim() === '');
+    });
+    if (missing) {
+      error(`${missing.label || missing.name} is required`);
+      return;
+    }
+
     setSaving(true);
     try {
       if (editing) {
+        const key = getRowKey(editing);
+        if (key == null || key === '') throw new Error(`Missing update key for ${title}`);
         const path =
           typeof updateEndpoint === 'function'
             ? updateEndpoint(editing)
-            : `${updateEndpoint || endpoints[0]}/${editing[rowKey]}`;
-        const body = mapUpdateBody ? mapUpdateBody(form, editing) : form;
+            : `${updateEndpoint || endpoints[0]}/${encodeURIComponent(key)}`;
+        const body = mapUpdateBody ? mapUpdateBody(form, editing) : { ...editing, ...form };
         await apiPut(path, body);
         success('Record updated');
       } else {
@@ -157,10 +180,12 @@ export default function ResourcePage({
   const remove = async (row) => {
     if (!window.confirm('Delete this record?')) return;
     try {
+      const key = getRowKey(row);
+      if (key == null || key === '') throw new Error(`Missing delete key for ${title}`);
       const path =
         typeof deleteEndpoint === 'function'
           ? deleteEndpoint(row)
-          : `${deleteEndpoint || endpoints[0]}/${row[rowKey]}`;
+          : `${deleteEndpoint || endpoints[0]}/${encodeURIComponent(key)}`;
       await apiDelete(path);
       success('Record deleted');
       await load();
@@ -232,8 +257,15 @@ export default function ResourcePage({
         <LoadingBlock />
       ) : loadError ? (
         <EmptyState
-          title="Could not load data"
-          description={`${loadError}. The API endpoint may still be under construction.`}
+          title={
+            loadError.data?.code === 'MSSQL_WORKFLOW_NOT_MAPPED'
+              ? 'SQL Server mapping in progress'
+              : 'Could not load data'
+          }
+          description={
+            loadError.data?.hint ||
+            `${loadError.message || 'Unable to load data'}. The API endpoint may still be under construction.`
+          }
           actionLabel="Retry"
           onAction={load}
         />
@@ -254,13 +286,13 @@ export default function ResourcePage({
                     {c.header}
                   </TableCell>
                 ))}
-                {(allowEdit || allowDelete) && <TableCell align="right">Actions</TableCell>}
+                {(allowEdit || allowDelete || rowActions) && <TableCell align="right">Actions</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
               {rows.map((row, idx) => (
                 <TableRow
-                  key={row[rowKey] ?? idx}
+                  key={getRowKey(row) ?? idx}
                   hover
                   className="row-fade"
                   style={{ animationDelay: `${Math.min(idx, 12) * 25}ms` }}
@@ -270,8 +302,9 @@ export default function ResourcePage({
                   {visibleColumns.map((c) => (
                     <TableCell key={c.field || c.header}>{renderCell(row, c)}</TableCell>
                   ))}
-                  {(allowEdit || allowDelete) && (
+                  {(allowEdit || allowDelete || rowActions) && (
                     <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                      {rowActions?.(row, load)}
                       {allowEdit && (
                         <IconButton size="small" onClick={() => openEdit(row)}>
                           <EditOutlinedIcon fontSize="small" />
@@ -295,26 +328,42 @@ export default function ResourcePage({
         <DialogTitle>{editing ? `Edit ${title}` : `${createLabel} — ${title}`}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            {fields.map((f) => (
-              <TextField
-                key={f.name}
-                label={f.label}
-                type={f.type || 'text'}
-                select={Boolean(f.options)}
-                required={f.required}
-                multiline={f.multiline}
-                minRows={f.minRows || 1}
-                value={form[f.name] ?? ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, [f.name]: e.target.value }))}
-                fullWidth
-              >
-                {f.options?.map((opt) => (
-                  <MenuItem key={opt.value ?? opt} value={opt.value ?? opt}>
-                    {opt.label ?? opt}
-                  </MenuItem>
-                ))}
-              </TextField>
-            ))}
+            {dialogFields.map((f) =>
+              f.type === 'checkbox' ? (
+                <FormControlLabel
+                  key={f.name}
+                  control={
+                    <Checkbox
+                      checked={Boolean(form[f.name])}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, [f.name]: e.target.checked }))
+                      }
+                    />
+                  }
+                  label={f.label}
+                />
+              ) : (
+                <TextField
+                  key={f.name}
+                  label={f.label}
+                  type={f.type || 'text'}
+                  select={Boolean(f.options)}
+                  required={f.required}
+                  multiline={f.multiline}
+                  minRows={f.minRows || 1}
+                  disabled={Boolean(editing && f.disabledOnEdit)}
+                  value={form[f.name] ?? ''}
+                  onChange={(e) => setForm((prev) => ({ ...prev, [f.name]: e.target.value }))}
+                  fullWidth
+                >
+                  {f.options?.map((opt) => (
+                    <MenuItem key={opt.value ?? opt} value={opt.value ?? opt}>
+                      {opt.label ?? opt}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )
+            )}
           </Stack>
         </DialogContent>
         <DialogActions>

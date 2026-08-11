@@ -321,6 +321,8 @@ export function updateQuote(quoteNumber, payload, user) {
   let total = existing.total_amount;
   if (payload.lines) {
     total = payload.lines.reduce((s, l) => s + Number(l.quantity || 0) * Number(l.unitPrice || 0), 0);
+  } else if (payload.totalAmount != null) {
+    total = Number(payload.totalAmount);
   }
 
   db.prepare(

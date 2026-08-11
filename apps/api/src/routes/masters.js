@@ -5,6 +5,7 @@ import {
   requirePermission,
 } from '../middleware/auth.js';
 import { isMssqlMode } from '../db/mssql.js';
+import { requireSqliteMode } from '../middleware/dbMode.js';
 import * as masterService from '../services/masterService.js';
 import * as legacy from '../services/mssqlLegacyService.js';
 import { listLegacyUsers } from '../services/mssqlAuthService.js';
@@ -29,7 +30,7 @@ router.get('/vendors', authRequired, vendorAccess, async (req, res) => {
   }
 });
 
-router.post('/vendors', authRequired, vendorAccess, (req, res) => {
+router.post('/vendors', authRequired, vendorAccess, requireSqliteMode, (req, res) => {
   try {
     res.status(201).json(masterService.upsertVendor(req.body));
   } catch (err) {
@@ -37,7 +38,7 @@ router.post('/vendors', authRequired, vendorAccess, (req, res) => {
   }
 });
 
-router.put('/vendors/:code', authRequired, vendorAccess, (req, res) => {
+router.put('/vendors/:code', authRequired, vendorAccess, requireSqliteMode, (req, res) => {
   try {
     res.json(masterService.upsertVendor({ ...req.body, vendorCode: req.params.code }));
   } catch (err) {
@@ -45,17 +46,17 @@ router.put('/vendors/:code', authRequired, vendorAccess, (req, res) => {
   }
 });
 
-router.get('/projects', authRequired, projectAccess, (req, res) => {
+router.get('/projects', authRequired, projectAccess, requireSqliteMode, (req, res) => {
   res.json(masterService.listProjects(req.query.q));
 });
 
-router.get('/projects/:code', authRequired, projectAccess, (req, res) => {
+router.get('/projects/:code', authRequired, projectAccess, requireSqliteMode, (req, res) => {
   const project = masterService.getProject(req.params.code);
   if (!project) return res.status(404).json({ error: 'Project not found' });
   res.json(project);
 });
 
-router.post('/projects', authRequired, projectAccess, (req, res) => {
+router.post('/projects', authRequired, projectAccess, requireSqliteMode, (req, res) => {
   try {
     res.status(201).json(masterService.upsertProject(req.body, req.user));
   } catch (err) {
@@ -63,7 +64,7 @@ router.post('/projects', authRequired, projectAccess, (req, res) => {
   }
 });
 
-router.put('/projects/:code', authRequired, projectAccess, (req, res) => {
+router.put('/projects/:code', authRequired, projectAccess, requireSqliteMode, (req, res) => {
   try {
     res.json(masterService.upsertProject({ ...req.body, projectCode: req.params.code }, req.user));
   } catch (err) {
@@ -71,7 +72,7 @@ router.put('/projects/:code', authRequired, projectAccess, (req, res) => {
   }
 });
 
-router.post('/projects/:code/approve', authRequired, projectAccess, requirePermission('canApprovePR'), (req, res) => {
+router.post('/projects/:code/approve', authRequired, projectAccess, requirePermission('canApprovePR'), requireSqliteMode, (req, res) => {
   try {
     res.json(masterService.approveProject(req.params.code, { ...req.body, user: req.user }));
   } catch (err) {
@@ -88,7 +89,7 @@ router.get('/items', authRequired, itemAccess, async (req, res) => {
   }
 });
 
-router.post('/items', authRequired, itemAccess, (req, res) => {
+router.post('/items', authRequired, itemAccess, requireSqliteMode, (req, res) => {
   try {
     res.status(201).json(masterService.upsertItem(req.body));
   } catch (err) {
@@ -96,7 +97,7 @@ router.post('/items', authRequired, itemAccess, (req, res) => {
   }
 });
 
-router.put('/items/:code', authRequired, itemAccess, (req, res) => {
+router.put('/items/:code', authRequired, itemAccess, requireSqliteMode, (req, res) => {
   try {
     res.json(masterService.upsertItem({ ...req.body, itemCode: req.params.code }));
   } catch (err) {
@@ -104,11 +105,11 @@ router.put('/items/:code', authRequired, itemAccess, (req, res) => {
   }
 });
 
-router.get('/cities', authRequired, cityAccess, (req, res) => {
+router.get('/cities', authRequired, cityAccess, requireSqliteMode, (req, res) => {
   res.json(masterService.listCities(req.query.q));
 });
 
-router.post('/cities', authRequired, cityAccess, (req, res) => {
+router.post('/cities', authRequired, cityAccess, requireSqliteMode, (req, res) => {
   try {
     res.status(201).json(masterService.upsertCity(req.body));
   } catch (err) {
@@ -116,7 +117,7 @@ router.post('/cities', authRequired, cityAccess, (req, res) => {
   }
 });
 
-router.put('/cities/:code', authRequired, cityAccess, (req, res) => {
+router.put('/cities/:code', authRequired, cityAccess, requireSqliteMode, (req, res) => {
   try {
     res.json(masterService.upsertCity({ ...req.body, cityCode: req.params.code }));
   } catch (err) {
@@ -124,11 +125,11 @@ router.put('/cities/:code', authRequired, cityAccess, (req, res) => {
   }
 });
 
-router.get('/customers', authRequired, customerAccess, (req, res) => {
+router.get('/customers', authRequired, customerAccess, requireSqliteMode, (req, res) => {
   res.json(masterService.listCustomers(req.query.q));
 });
 
-router.post('/customers', authRequired, customerAccess, (req, res) => {
+router.post('/customers', authRequired, customerAccess, requireSqliteMode, (req, res) => {
   try {
     res.status(201).json(masterService.upsertCustomer(req.body));
   } catch (err) {
@@ -136,7 +137,7 @@ router.post('/customers', authRequired, customerAccess, (req, res) => {
   }
 });
 
-router.put('/customers/:code', authRequired, customerAccess, (req, res) => {
+router.put('/customers/:code', authRequired, customerAccess, requireSqliteMode, (req, res) => {
   try {
     res.json(masterService.upsertCustomer({ ...req.body, customerCode: req.params.code }));
   } catch (err) {
@@ -144,11 +145,11 @@ router.put('/customers/:code', authRequired, customerAccess, (req, res) => {
   }
 });
 
-router.get('/assets', authRequired, assetAccess, (req, res) => {
+router.get('/assets', authRequired, assetAccess, requireSqliteMode, (req, res) => {
   res.json(masterService.listAssets(req.query.q));
 });
 
-router.post('/assets', authRequired, assetAccess, (req, res) => {
+router.post('/assets', authRequired, assetAccess, requireSqliteMode, (req, res) => {
   try {
     res.status(201).json(masterService.upsertAsset(req.body));
   } catch (err) {
@@ -156,7 +157,7 @@ router.post('/assets', authRequired, assetAccess, (req, res) => {
   }
 });
 
-router.put('/assets/:code', authRequired, assetAccess, (req, res) => {
+router.put('/assets/:code', authRequired, assetAccess, requireSqliteMode, (req, res) => {
   try {
     res.json(masterService.upsertAsset({ ...req.body, assetCode: req.params.code }));
   } catch (err) {
@@ -164,11 +165,11 @@ router.put('/assets/:code', authRequired, assetAccess, (req, res) => {
   }
 });
 
-router.get('/sales-products', authRequired, salesProductAccess, (req, res) => {
+router.get('/sales-products', authRequired, salesProductAccess, requireSqliteMode, (req, res) => {
   res.json(masterService.listSalesProducts(req.query.q));
 });
 
-router.post('/sales-products', authRequired, salesProductAccess, (req, res) => {
+router.post('/sales-products', authRequired, salesProductAccess, requireSqliteMode, (req, res) => {
   try {
     res.status(201).json(masterService.upsertSalesProduct(req.body));
   } catch (err) {
@@ -176,7 +177,7 @@ router.post('/sales-products', authRequired, salesProductAccess, (req, res) => {
   }
 });
 
-router.put('/sales-products/:code', authRequired, salesProductAccess, (req, res) => {
+router.put('/sales-products/:code', authRequired, salesProductAccess, requireSqliteMode, (req, res) => {
   try {
     res.json(masterService.upsertSalesProduct({ ...req.body, productCode: req.params.code }));
   } catch (err) {
@@ -184,17 +185,17 @@ router.put('/sales-products/:code', authRequired, salesProductAccess, (req, res)
   }
 });
 
-router.get('/boms', authRequired, bomAccess, (req, res) => {
+router.get('/boms', authRequired, bomAccess, requireSqliteMode, (req, res) => {
   res.json(masterService.listBoms(req.query.status));
 });
 
-router.get('/boms/:code', authRequired, bomAccess, (req, res) => {
+router.get('/boms/:code', authRequired, bomAccess, requireSqliteMode, (req, res) => {
   const bom = masterService.getBom(req.params.code);
   if (!bom) return res.status(404).json({ error: 'BOM not found' });
   res.json(bom);
 });
 
-router.post('/boms', authRequired, bomAccess, (req, res) => {
+router.post('/boms', authRequired, bomAccess, requireSqliteMode, (req, res) => {
   try {
     res.status(201).json(masterService.createBom(req.body, req.user));
   } catch (err) {
@@ -202,7 +203,7 @@ router.post('/boms', authRequired, bomAccess, (req, res) => {
   }
 });
 
-router.post('/boms/:code/approve', authRequired, bomAccess, requirePermission('canApprovePR'), (req, res) => {
+router.post('/boms/:code/approve', authRequired, bomAccess, requirePermission('canApprovePR'), requireSqliteMode, (req, res) => {
   try {
     res.json(masterService.approveBom(req.params.code, { ...req.body, user: req.user }));
   } catch (err) {
@@ -219,11 +220,11 @@ router.get('/users', authRequired, userAccess, async (_req, res) => {
   }
 });
 
-router.get('/item-codes', authRequired, itemAccess, (req, res) => {
+router.get('/item-codes', authRequired, itemAccess, requireSqliteMode, (req, res) => {
   res.json(masterService.listItemCodeRequests(req.query.status));
 });
 
-router.post('/item-codes', authRequired, itemAccess, (req, res) => {
+router.post('/item-codes', authRequired, itemAccess, requireSqliteMode, (req, res) => {
   try {
     res.status(201).json(masterService.createItemCodeRequest(req.body, req.user));
   } catch (err) {
@@ -231,7 +232,7 @@ router.post('/item-codes', authRequired, itemAccess, (req, res) => {
   }
 });
 
-router.post('/item-codes/:id/decide', authRequired, itemAccess, requirePermission('canApprovePR'), (req, res) => {
+router.post('/item-codes/:id/decide', authRequired, itemAccess, requirePermission('canApprovePR'), requireSqliteMode, (req, res) => {
   try {
     res.json(masterService.decideItemCodeRequest(Number(req.params.id), { ...req.body, user: req.user }));
   } catch (err) {

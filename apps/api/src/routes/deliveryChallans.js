@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { authRequired, requireAnyLegacyPermission } from '../middleware/auth.js';
+import { requireSqliteMode } from '../middleware/dbMode.js';
 import * as deliveryChallanService from '../services/deliveryChallanService.js';
 
 const router = Router();
 router.use(authRequired, requireAnyLegacyPermission('receipt', 'projectMaster'));
+router.use(requireSqliteMode);
 
 router.get('/', authRequired, (req, res) => {
   res.json(deliveryChallanService.listDeliveryChallans(req.query));
