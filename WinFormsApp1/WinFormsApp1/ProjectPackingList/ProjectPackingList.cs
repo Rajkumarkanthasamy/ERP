@@ -1351,16 +1351,43 @@ ORDER BY mb.ProductNo, mb.ItemName;";
             var f = new Form
             {
                 Text = title,
-                Size = new Size(360, 120),
-                FormBorderStyle = FormBorderStyle.FixedDialog,
+                // Client area ~480x200; Height includes title bar / borders
+                Size = new Size(520, 240),
+                MinimumSize = new Size(420, 200),
+                FormBorderStyle = FormBorderStyle.Sizable,
                 StartPosition = FormStartPosition.CenterParent,
                 MaximizeBox = false,
                 MinimizeBox = false
             };
-            var lb = new Label { Text = label, AutoSize = true, Location = new Point(10, 14) };
-            var tb = new TextBox { Location = new Point(10, 34), Width = 324, Text = def };
-            var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, Location = new Point(160, 62), Width = 80 };
-            var ca = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Location = new Point(254, 62), Width = 80 };
+            var lb = new Label { Text = label, AutoSize = true, Location = new Point(12, 12) };
+            var tb = new TextBox
+            {
+                Location = new Point(12, 36),
+                Width = 480,
+                Height = 110,
+                Multiline = true,
+                ScrollBars = ScrollBars.Vertical,
+                Text = def,
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
+            };
+            var ok = new Button
+            {
+                Text = "OK",
+                DialogResult = DialogResult.OK,
+                Location = new Point(300, 160),
+                Width = 90,
+                Height = 28,
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right
+            };
+            var ca = new Button
+            {
+                Text = "Cancel",
+                DialogResult = DialogResult.Cancel,
+                Location = new Point(400, 160),
+                Width = 90,
+                Height = 28,
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right
+            };
             f.AcceptButton = ok; f.CancelButton = ca;
             f.Controls.AddRange(new Control[] { lb, tb, ok, ca });
             return f.ShowDialog() == DialogResult.OK ? tb.Text.Trim() : def;
