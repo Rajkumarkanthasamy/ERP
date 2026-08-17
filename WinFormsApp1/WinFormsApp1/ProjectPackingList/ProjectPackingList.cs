@@ -1088,16 +1088,14 @@ ORDER BY mb.ProductNo, mb.ItemName;";
 
         private void BuildPdf(string path)
         {
-            float contentHeight = 650f;
-            float headerHeight = 100f;
-            float footerHeight = 92f;
-            float pageWidth = PageSize.A4.Width;
-            float pageHeight = contentHeight + headerHeight + footerHeight;
-            var customPage = new Rectangle(pageWidth, pageHeight);
+            // Standard A4 with margins that match header/footer band heights
+            const float marginLR = 36f;
+            const float marginTop = 72f;   // logos + red line
+            const float marginBottom = 88f; // company footer + red line
 
-            var doc = new Document(customPage, 36, 36, headerHeight, footerHeight);
+            var doc = new Document(PageSize.A4, marginLR, marginLR, marginTop, marginBottom);
             var writer = PdfWriter.GetInstance(doc, new FileStream(path, FileMode.Create));
-            writer.PageEvent = new InstronHeaderFooter(headerHeight, footerHeight);
+            writer.PageEvent = new InstronHeaderFooter(marginTop, marginBottom);
             doc.Open();
 
             var fTitle = FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 10, BaseColor.BLACK);
@@ -1212,93 +1210,146 @@ ORDER BY mb.ProductNo, mb.ItemName;";
                     if (File.Exists(instronPath))
                     {
                         _instronLogo = Image.GetInstance(instronPath);
-                        _instronLogo.ScalePercent(40);
+                        // Keep logos within the top margin band
+                        _instronLogo.ScaleToFit(180f, 42f);
                     }
                     if (File.Exists(itwPath))
                     {
                         _itwLogo = Image.GetInstance(itwPath);
-                        _itwLogo.ScalePercent(40);
+                        _itwLogo.ScaleToFit(110f, 42f);
                     }
                 }
                 catch { }
                 _imagesLoaded = true;
             }
 
-            public override void OnStartPage(PdfWriter writer, Document document)
-            {
-                base.OnStartPage(writer, document);
-                LoadImages();
-
-                var cb = writer.DirectContent;
-                var pageHeight = document.PageSize.Height;
-
-                // Header positioned at very top
-                var headerTable = new PdfPTable(2) { WidthPercentage = 100 };
-                headerTable.SetWidths(new float[] { 70, 30 });
-                headerTable.TotalWidth = document.PageSize.Width - document.LeftMargin - document.RightMargin;
-
-                var instronCell = new PdfPCell() { Border = Rectangle.NO_BORDER, VerticalAlignment = Element.ALIGN_BOTTOM };
-                if (_instronLogo != null) instronCell.AddElement(_instronLogo);
-                headerTable.AddCell(instronCell);
-
-                var itwCell = new PdfPCell() { Border = Rectangle.NO_BORDER, VerticalAlignment = Element.ALIGN_BOTTOM, HorizontalAlignment = Element.ALIGN_RIGHT };
-                if (_itwLogo != null) itwCell.AddElement(_itwLogo);
-                headerTable.AddCell(itwCell);
-
-                // Write header starting 10 points from top
-                headerTable.WriteSelectedRows(0, -1, document.LeftMargin, pageHeight - 10, cb);
-
-                // Red line at bottom of header area
-                cb.SetColorStroke(_redLine);
-                cb.SetLineWidth(2f);
-                float lineY = pageHeight - _headerHeight + 10; // 10 points above content area
-                cb.MoveTo(document.LeftMargin, lineY);
-                cb.LineTo(document.PageSize.Width - document.RightMargin, lineY);
-                cb.Stroke();
-            }
-
             public override void OnEndPage(PdfWriter writer, Document document)
             {
                 base.OnEndPage(writer, document);
+                LoadImages();
 
-                var cb = writer.DirectContent;
+                PdfContentByte cb = writer.DirectContent;
+                float left = document.LeftMargin;
+                float right = document.PageSize.Width - document.RightMargin;
+                float usableWidth = right - left;
+                float pageTop = document.PageSize.Height;
 
-                // Red line at top of footer area
+                // ── HEADER (draw in OnEndPage so coordinates are final) ─────────
+                var headerTable = new PdfPTable(2);
+                headerTable.TotalWidth = usableWidth;
+                headerTable.SetWidths(new float[] { 65f, 35f });
+                headerTable.LockedWidth = true;
+
+                PdfPCell instronCell;
+                if (_instronLogo != null)
+                {
+                    instronCell = new PdfPCell(_instronLogo, false)
+                    {
+                        Border = Rectangle.NO_BORDER,
+                        HorizontalAlignment = Element.ALIGN_LEFT,
+                        VerticalAlignment = Element.ALIGN_MIDDLE,
+                        Padding = 0f,
+                        PaddingBottom = 2f
+                    };
+                }
+                else
+                {
+                    instronCell = new PdfPCell(new Phrase("Instron", FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 12)))
+                    {
+                        Border = Rectangle.NO_BORDER,
+                        HorizontalAlignment = Element.ALIGN_LEFT,
+                        VerticalAlignment = Element.ALIGN_MIDDLE
+                    };
+                }
+
+                PdfPCell itwCell;
+                if (_itwLogo != null)
+                {
+                    itwCell = new PdfPCell(_itwLogo, false)
+                    {
+                        Border = Rectangle.NO_BORDER,
+                        HorizontalAlignment = Element.ALIGN_RIGHT,
+                        VerticalAlignment = Element.ALIGN_MIDDLE,
+                        Padding = 0f,
+                        PaddingBottom = 2f
+                    };
+                }
+                else
+                {
+                    itwCell = new PdfPCell(new Phrase("ITW", FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 12)))
+                    {
+                        Border = Rectangle.NO_BORDER,
+                        HorizontalAlignment = Element.ALIGN_RIGHT,
+                        VerticalAlignment = Element.ALIGN_MIDDLE
+                    };
+                }
+
+                headerTable.AddCell(instronCell);
+                headerTable.AddCell(itwCell);
+
+                // WriteSelectedRows Y = TOP of table (PDF origin is bottom-left)
+                float headerTop = pageTop - 14f;
+                headerTable.WriteSelectedRows(0, -1, left, headerTop, cb);
+
+                // Red line at bottom of header margin (just above content)
+                float headerLineY = pageTop - _headerHeight + 8f;
                 cb.SetColorStroke(_redLine);
-                cb.SetLineWidth(1f);
-                float lineY = _footerHeight - 5; // 5 points above footer text
-                cb.MoveTo(document.LeftMargin, lineY);
-                cb.LineTo(document.PageSize.Width - document.RightMargin, lineY);
+                cb.SetLineWidth(1.5f);
+                cb.MoveTo(left, headerLineY);
+                cb.LineTo(right, headerLineY);
                 cb.Stroke();
 
-                // Footer table
-                var footerTable = new PdfPTable(2) { WidthPercentage = 100 };
-                footerTable.SetWidths(new float[] { 60, 40 });
-                footerTable.TotalWidth = document.PageSize.Width - document.LeftMargin - document.RightMargin;
+                // ── FOOTER ──────────────────────────────────────────────────────
+                var footerTable = new PdfPTable(2);
+                footerTable.TotalWidth = usableWidth;
+                footerTable.SetWidths(new float[] { 58f, 42f });
+                footerTable.LockedWidth = true;
 
-                var leftCell = new PdfPCell() { Border = Rectangle.NO_BORDER };
+                var leftCell = new PdfPCell { Border = Rectangle.NO_BORDER, Padding = 0f, PaddingTop = 4f };
                 leftCell.AddElement(new Paragraph("ITW India Private Limited (Instron Division)",
-                    FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 8, BaseColor.BLACK)));
-                leftCell.AddElement(new Paragraph("No. 497E, 14th Cross, 4th Phase, PIA, Bangalore – 560 058, India", _fFooter));
-                leftCell.AddElement(new Paragraph("Ph: +91 (80) 28360184, Fax: +91 (80) 28360047", _fFooter));
-
-                var webEmail = new Paragraph();
+                    FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 8, BaseColor.BLACK)) { SpacingAfter = 1f });
+                leftCell.AddElement(new Paragraph("No. 497E, 14th Cross, 4th Phase, PIA, Bangalore – 560 058, India", _fFooter) { SpacingAfter = 0f });
+                leftCell.AddElement(new Paragraph("Ph: +91 (80) 28360184, Fax: +91 (80) 28360047", _fFooter) { SpacingAfter = 0f });
+                var webEmail = new Paragraph { SpacingAfter = 0f };
                 webEmail.Add(new Chunk("www.instron.com ", FontFactory.GetFont(FontFactory.HELVETICA, 7, BaseColor.BLUE)));
                 webEmail.Add(new Chunk("Email: sales.india@instron.com", _fFooter));
                 leftCell.AddElement(webEmail);
                 footerTable.AddCell(leftCell);
 
-                var rightCell = new PdfPCell() { Border = Rectangle.NO_BORDER };
+                var rightCell = new PdfPCell { Border = Rectangle.NO_BORDER, Padding = 0f, PaddingTop = 4f };
                 rightCell.AddElement(new Paragraph("Registered Office:",
-                    FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 8, BaseColor.BLACK)));
-                rightCell.AddElement(new Paragraph("ITW India Private Limited.", _fFooter));
-                rightCell.AddElement(new Paragraph("Plot Nos. 50-59, Sector-25, Faridabad, Ballabgarh,", _fFooter));
-                rightCell.AddElement(new Paragraph("Haryana, India- 121004", _fFooter));
-                rightCell.AddElement(new Paragraph("CIN No.- U32301HR1979PTC038643", _fFooter));
+                    FontFactory.GetFont(FontFactory.HELVETICA_BOLD, 8, BaseColor.BLACK)) { SpacingAfter = 1f });
+                rightCell.AddElement(new Paragraph("ITW India Private Limited.", _fFooter) { SpacingAfter = 0f });
+                rightCell.AddElement(new Paragraph("Plot Nos. 50-59, Sector-25, Faridabad, Ballabgarh,", _fFooter) { SpacingAfter = 0f });
+                rightCell.AddElement(new Paragraph("Haryana, India- 121004", _fFooter) { SpacingAfter = 0f });
+                rightCell.AddElement(new Paragraph("CIN No.- U32301HR1979PTC038643", _fFooter) { SpacingAfter = 0f });
                 footerTable.AddCell(rightCell);
 
-                // Write footer at bottom of page
-                footerTable.WriteSelectedRows(0, -1, document.LeftMargin, _footerHeight - 10, cb);
+                // Sit footer on the page bottom: topY = tableHeight + bottom padding
+                const float footerBottomPad = 10f;
+                float footerTop = footerTable.TotalHeight + footerBottomPad;
+                // Keep footer inside reserved bottom margin
+                if (footerTop > _footerHeight - 4f)
+                    footerTop = _footerHeight - 4f;
+
+                // Red line just above footer / at content bottom edge
+                float footerLineY = Math.Max(footerTop + 4f, _footerHeight - 2f);
+                if (footerLineY > document.Bottom)
+                    footerLineY = document.Bottom;
+                cb.SetColorStroke(_redLine);
+                cb.SetLineWidth(1f);
+                cb.MoveTo(left, footerLineY);
+                cb.LineTo(right, footerLineY);
+                cb.Stroke();
+
+                footerTable.WriteSelectedRows(0, -1, left, footerTop, cb);
+
+                // Page number (right side of footer band)
+                var pageFont = FontFactory.GetFont(FontFactory.HELVETICA, 7, BaseColor.DARK_GRAY);
+                ColumnText.ShowTextAligned(
+                    cb, Element.ALIGN_RIGHT,
+                    new Phrase("Page " + writer.PageNumber, pageFont),
+                    right, 4f, 0);
             }
         }
 
