@@ -1107,6 +1107,12 @@ ORDER BY mb.ProductNo, mb.ItemName;";
             DataTable ProjectDetails = DAL.getProjectDetailsPacking(_projectCode).Tables[0];
 
             doc.Add(new Paragraph("PACKING LIST - " + ProjectDetails.Rows[0]["customer"], fTitle) { Alignment = Element.ALIGN_CENTER });
+            doc.Add(new Paragraph(
+                "Project Code: " + _projectCode
+                + "   |   Packing No: " + txtPackingNo.Text
+                + "   |   Date: " + dtpDate.Value.ToString("dd-MM-yyyy"),
+                fBold)
+            { SpacingBefore = 8, Alignment = Element.ALIGN_CENTER });
             doc.Add(new Paragraph("Kind Attention -" + ProjectDetails.Rows[0]["ContactPerson"], fBold) { SpacingBefore = 10, Alignment = Element.ALIGN_LEFT });
             doc.Add(new Paragraph("Ship to - " + ProjectDetails.Rows[0]["customer"], fBold) { SpacingBefore = 3, Alignment = Element.ALIGN_LEFT });
             doc.Add(new Paragraph("" + ProjectDetails.Rows[0]["ShiptoCustomer"], fBold) { SpacingBefore = 3, Alignment = Element.ALIGN_LEFT });
