@@ -17,6 +17,7 @@ namespace WinFormsApp1
         private readonly List<WorkspacePR> _droppedPRs = new List<WorkspacePR>();
         private Point _dragStart;
         private bool _dragging;
+        private FormWindowState _lastWindowState = FormWindowState.Normal;
 
         private class WorkspacePR
         {
@@ -52,6 +53,19 @@ namespace WinFormsApp1
         {
             // Set splitter ratios after the form has a real size (avoids crash / bad layout)
             ApplyResponsiveSplitters();
+            ConfigureGridFill();
+        }
+
+        private void frmPRtoPOWorkspace_ResizeEnd(object sender, EventArgs e)
+        {
+            ApplyResponsiveSplitters();
+        }
+
+        private void frmPRtoPOWorkspace_SizeChanged(object sender, EventArgs e)
+        {
+            // Rebalance when maximizing / restoring (ResizeEnd does not fire for that)
+            if (WindowState == FormWindowState.Maximized || WindowState == FormWindowState.Normal)
+                ApplyResponsiveSplitters();
         }
 
         /// <summary>
@@ -60,12 +74,21 @@ namespace WinFormsApp1
         private void FitToWorkingArea()
         {
             Rectangle wa = Screen.FromControl(this).WorkingArea;
-            int targetW = Math.Min(1200, Math.Max(MinimumSize.Width, wa.Width - 40));
-            int targetH = Math.Min(780, Math.Max(MinimumSize.Height, wa.Height - 40));
+            int margin = 24;
+            int targetW = Math.Max(MinimumSize.Width, Math.Min(wa.Width - margin, Math.Max(1000, (int)(wa.Width * 0.92))));
+            int targetH = Math.Max(MinimumSize.Height, Math.Min(wa.Height - margin, Math.Max(640, (int)(wa.Height * 0.90))));
+
+            // Very small screens: use almost full working area
+            if (wa.Width < 1100 || wa.Height < 700)
+            {
+                targetW = Math.Max(MinimumSize.Width, wa.Width - 16);
+                targetH = Math.Max(MinimumSize.Height, wa.Height - 16);
+            }
+
             Width = targetW;
             Height = targetH;
-            Left = wa.Left + (wa.Width - Width) / 2;
-            Top = wa.Top + (wa.Height - Height) / 2;
+            Left = wa.Left + Math.Max(0, (wa.Width - Width) / 2);
+            Top = wa.Top + Math.Max(0, (wa.Height - Height) / 2);
             WindowState = FormWindowState.Normal;
         }
 
@@ -92,6 +115,13 @@ namespace WinFormsApp1
             {
                 // Ignore if control not ready yet
             }
+        }
+
+        private void ConfigureGridFill()
+        {
+            dgvSourcePRs.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dgvDropped.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dgvLines.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
         }
 
         private void LoadSourcePRs()

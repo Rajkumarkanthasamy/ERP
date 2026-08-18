@@ -668,6 +668,8 @@ namespace WinFormsApp1
             Text = "PR to PO Drag && Drop Workspace";
             Load += frmPRtoPOWorkspace_Load;
             Shown += frmPRtoPOWorkspace_Shown;
+            ResizeEnd += frmPRtoPOWorkspace_ResizeEnd;
+            SizeChanged += frmPRtoPOWorkspace_SizeChanged;
             panelHeader.ResumeLayout(false);
             panelHeader.PerformLayout();
             panelFooter.ResumeLayout(false);
