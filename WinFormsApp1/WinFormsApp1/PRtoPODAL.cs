@@ -254,10 +254,21 @@ namespace WinFormsApp1
                         if (amount <= 0f)
                             amount = qty * first.UnitPrice;
 
-                        string projects = string.Join(",",
-                            g.Select(x => (x.ProjectCode ?? "").Trim())
-                             .Where(s => s.Length > 0)
-                             .Distinct(StringComparer.OrdinalIgnoreCase));
+                        // Header for PurchaseOrderBOM allocations: ProjectCode/ProductNo/Qty
+                        // Example: CUS-2025-07-UTM-125533/19/12 ,CUS-2025-07-UTM-125533/22/10
+                        string projects = string.Join(" ,",
+                            g.Select(x =>
+                            {
+                                string pc = (x.ProjectCode ?? "").Trim();
+                                if (pc.Length == 0) return null;
+                                string pn = string.IsNullOrWhiteSpace(x.ProductNo) ? "0" : x.ProductNo.Trim();
+                                float q = x.RequariedQty;
+                                string qStr = Math.Abs(q - (float)Math.Round(q)) < 0.0001f
+                                    ? ((int)Math.Round(q)).ToString()
+                                    : q.ToString("G29");
+                                return pc + "/" + pn + "/" + qStr;
+                            })
+                            .Where(s => !string.IsNullOrWhiteSpace(s)));
 
                         return new PRtoPOModel
                         {
