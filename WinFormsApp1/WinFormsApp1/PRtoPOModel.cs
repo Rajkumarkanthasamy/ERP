@@ -19,6 +19,7 @@ namespace WinFormsApp1
 
         // === Project Info ===
         public string ProjectCode { get; set; }
+        public string ProductNo { get; set; }       // For PurchaseOrderBOM project/product split
         public string BOMProjectList { get; set; }  // For clubbed PRs: comma-separated projects
 
         // === Vendor Info ===

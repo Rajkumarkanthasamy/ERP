@@ -520,6 +520,8 @@ namespace WinFormsApp1
                     PRID = _selectedPRID,
                     DetailID = Convert.ToInt32(row.Cells["DetailID"].Value),
                     ProjectCode = row.Cells["ProjectCode"].Value.ToString(),
+                    ProductNo = dgvPRLines.Columns.Contains("ProductNo") && row.Cells["ProductNo"].Value != null
+                        ? row.Cells["ProductNo"].Value.ToString() : "",
                     VendorCode = row.Cells["VendorCode"].Value.ToString(),
                     ItemCode = row.Cells["ItemCode"].Value.ToString(),
                     //ItemName = row.Cells["ItemName"].Value != DBNull.Value ? row.Cells["ItemName"].Value.ToString() : "",

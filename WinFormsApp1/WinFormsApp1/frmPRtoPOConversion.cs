@@ -291,6 +291,8 @@ namespace WinFormsApp1
                     PRID = _selectedPRID,
                     DetailID = Convert.ToInt32(row["DetailID"]),
                     ProjectCode = row["ProjectCode"].ToString(),
+                    ProductNo = row.Table.Columns.Contains("ProductNo") && row["ProductNo"] != DBNull.Value
+                        ? row["ProductNo"].ToString() : "",
                     VendorCode = row["VendorCode"].ToString(),
                     ItemCode = row["ItemCode"].ToString(),
                    // ItemName = row["ItemName"] != DBNull.Value ? row["ItemName"].ToString() : "",

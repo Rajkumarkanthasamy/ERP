@@ -304,6 +304,9 @@ namespace WinFormsApp1
                             PRID = pr.PRID,
                             DBOMNo = pr.PRNumber,
                             ProjectCode = line["ProjectCode"]?.ToString() ?? pr.ProjectCode,
+                            ProductNo = line.Table.Columns.Contains("ProductNo")
+                                ? (line["ProductNo"]?.ToString() ?? "")
+                                : "",
                             VendorCode = pr.VendorCode,
                             ItemCode = line["ItemCode"]?.ToString() ?? "",
                             UOM = line["UOM"]?.ToString() ?? "Nos",
@@ -311,7 +314,8 @@ namespace WinFormsApp1
                             UnitPrice = Convert.ToSingle(line["UnitPrice"]),
                             Amount = Convert.ToSingle(line["Amount"]),
                             RemainingQty = Convert.ToSingle(line["RequariedQty"]),
-                            BOMQty = line["BOMQty"] != DBNull.Value ? Convert.ToSingle(line["BOMQty"]) : 0,
+                            BOMQty = line.Table.Columns.Contains("BOMQty") && line["BOMQty"] != DBNull.Value
+                                ? Convert.ToSingle(line["BOMQty"]) : 0,
                             PreparedBy = txtPreparedBy.Text.Trim(),
                             AuthoriedBy = txtAuthorisedBy.Text.Trim(),
                             POGeneratedBy = _currentUser,
@@ -329,6 +333,8 @@ namespace WinFormsApp1
                     }
                 }
 
+                // BulkConvert aggregates duplicate ItemCodes into one PurchaseOrder line
+                // and writes project/product splits into PurchaseOrderBOM.
                 int count = _dal.BulkConvertPRtoPO(poList);
                 if (count > 0)
                 {
@@ -339,7 +345,7 @@ namespace WinFormsApp1
                         _dal.RefreshPRConversionStatus(pr);
 
                     totalLines += count;
-                    results.Add($"{vendorGroup.Key}: {count} PO line(s) from {vendorGroup.Count()} PR(s)");
+                    results.Add($"{vendorGroup.Key}: {count} unique PO item(s) from {poList.Count} PR line(s) / {vendorGroup.Count()} PR(s)");
                 }
             }
 

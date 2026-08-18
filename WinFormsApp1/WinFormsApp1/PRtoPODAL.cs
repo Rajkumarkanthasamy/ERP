@@ -16,6 +16,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace WinFormsApp1
@@ -222,52 +223,107 @@ namespace WinFormsApp1
         }
 
         /// <summary>
-        /// Bulk convert multiple PR lines to PO
+        /// Bulk convert PR lines to PO.
+        /// PurchaseOrder: one row per (PO number + ItemCode + UnitPrice) with summed qty (Excel style).
+        /// PurchaseOrderBOM: one row per source PR line (ProjectCode / ProductNo split).
         /// </summary>
         public int BulkConvertPRtoPO(List<PRtoPOModel> poList)
         {
             int insertedCount = 0;
+            if (poList == null || poList.Count == 0)
+                return 0;
+
             try
             {
                 _dal.SQLCon.Open();
-                foreach (var po in poList)
-                {
-                    string query = @"
-                        INSERT INTO PurchaseOrder 
-                        (
-                            DBOMNo, ProjectCode, VendorCode, PreparedBy, AuthoriedBy,
-                            ItemCode, UOM, RequariedQty, UnitPrice, Amount, RemainingQty,
-                            POGeneratedBy, POGeneratedDate, Remarks, POPreparedDate,
-                            PODeliveryDate, ProjectStatus, BOMQty, BOMProjectList,
-                            POApproved, WithoutBOM, Currency, FXRate
-                           
-                        )
-                        VALUES 
-                        (
-                            @DBOMNo, @ProjectCode, @VendorCode, @PreparedBy, @AuthoriedBy,
-                            @ItemCode, @UOM, @RequariedQty, @UnitPrice, @Amount, @RemainingQty,
-                            @POGeneratedBy, @POGeneratedDate, @Remarks, @POPreparedDate,
-                            @PODeliveryDate, @ProjectStatus, @BOMQty, @BOMProjectList,
-                            @POApproved, @WithoutBOM, @Currency, @FXRate
-                        )";
 
-                    _dal.SQLCmd = new SqlCommand(query, _dal.SQLCon);
-                    _dal.SQLCmd.Parameters.AddWithValue("@DBOMNo", po.DBOMNo);
-                    _dal.SQLCmd.Parameters.AddWithValue("@ProjectCode", po.ProjectCode);
-                    _dal.SQLCmd.Parameters.AddWithValue("@VendorCode", po.VendorCode);
+                // Aggregate duplicate ItemCodes within the same PO number
+                var aggregated = poList
+                    .GroupBy(p => new
+                    {
+                        PoNo = (p.DBOMNo ?? "").Trim().ToUpperInvariant(),
+                        Item = (p.ItemCode ?? "").Trim().ToUpperInvariant(),
+                        Price = p.UnitPrice
+                    })
+                    .Select(g =>
+                    {
+                        var first = g.First();
+                        float qty = g.Sum(x => x.RequariedQty);
+                        float bomQty = g.Sum(x => x.BOMQty);
+                        float amount = g.Sum(x => x.Amount);
+                        if (amount <= 0f)
+                            amount = qty * first.UnitPrice;
+
+                        string projects = string.Join(",",
+                            g.Select(x => (x.ProjectCode ?? "").Trim())
+                             .Where(s => s.Length > 0)
+                             .Distinct(StringComparer.OrdinalIgnoreCase));
+
+                        return new PRtoPOModel
+                        {
+                            DBOMNo = first.DBOMNo,
+                            ProjectCode = first.ProjectCode,
+                            VendorCode = first.VendorCode,
+                            ItemCode = first.ItemCode,
+                            UOM = string.IsNullOrWhiteSpace(first.UOM) ? "Nos" : first.UOM,
+                            RequariedQty = qty,
+                            UnitPrice = first.UnitPrice,
+                            Amount = amount,
+                            RemainingQty = qty,
+                            BOMQty = bomQty,
+                            PreparedBy = first.PreparedBy,
+                            AuthoriedBy = first.AuthoriedBy,
+                            POGeneratedBy = first.POGeneratedBy,
+                            POGeneratedDate = first.POGeneratedDate,
+                            POPreparedDate = first.POPreparedDate,
+                            PODeliveryDate = first.PODeliveryDate,
+                            Currency = first.Currency,
+                            FXRate = first.FXRate,
+                            Remarks = first.Remarks,
+                            POApproved = first.POApproved,
+                            WithoutBOM = first.WithoutBOM,
+                            ProjectStatus = first.ProjectStatus,
+                            BOMProjectList = string.IsNullOrWhiteSpace(projects) ? first.BOMProjectList : projects
+                        };
+                    })
+                    .ToList();
+
+                string poInsert = @"
+                    INSERT INTO PurchaseOrder
+                    (
+                        DBOMNo, ProjectCode, VendorCode, PreparedBy, AuthoriedBy,
+                        ItemCode, UOM, RequariedQty, UnitPrice, Amount, RemainingQty,
+                        POGeneratedBy, POGeneratedDate, Remarks, POPreparedDate,
+                        PODeliveryDate, ProjectStatus, BOMQty, BOMProjectList,
+                        POApproved, WithoutBOM, Currency, FXRate
+                    )
+                    VALUES
+                    (
+                        @DBOMNo, @ProjectCode, @VendorCode, @PreparedBy, @AuthoriedBy,
+                        @ItemCode, @UOM, @RequariedQty, @UnitPrice, @Amount, @RemainingQty,
+                        @POGeneratedBy, @POGeneratedDate, @Remarks, @POPreparedDate,
+                        @PODeliveryDate, @ProjectStatus, @BOMQty, @BOMProjectList,
+                        @POApproved, @WithoutBOM, @Currency, @FXRate
+                    )";
+
+                foreach (var po in aggregated)
+                {
+                    _dal.SQLCmd = new SqlCommand(poInsert, _dal.SQLCon);
+                    _dal.SQLCmd.Parameters.AddWithValue("@DBOMNo", po.DBOMNo ?? "");
+                    _dal.SQLCmd.Parameters.AddWithValue("@ProjectCode", po.ProjectCode ?? "");
+                    _dal.SQLCmd.Parameters.AddWithValue("@VendorCode", po.VendorCode ?? "");
                     _dal.SQLCmd.Parameters.AddWithValue("@PreparedBy", string.IsNullOrEmpty(po.PreparedBy) ? (object)DBNull.Value : po.PreparedBy);
                     _dal.SQLCmd.Parameters.AddWithValue("@AuthoriedBy", string.IsNullOrEmpty(po.AuthoriedBy) ? (object)DBNull.Value : po.AuthoriedBy);
-                    _dal.SQLCmd.Parameters.AddWithValue("@ItemCode", po.ItemCode);
-                    _dal.SQLCmd.Parameters.AddWithValue("@UOM",
-                        string.IsNullOrWhiteSpace(po.UOM) ? "Nos" : po.UOM);
+                    _dal.SQLCmd.Parameters.AddWithValue("@ItemCode", po.ItemCode ?? "");
+                    _dal.SQLCmd.Parameters.AddWithValue("@UOM", string.IsNullOrWhiteSpace(po.UOM) ? "Nos" : po.UOM);
                     _dal.SQLCmd.Parameters.AddWithValue("@RequariedQty", po.RequariedQty);
                     _dal.SQLCmd.Parameters.AddWithValue("@UnitPrice", po.UnitPrice);
                     _dal.SQLCmd.Parameters.AddWithValue("@Amount", po.Amount);
                     _dal.SQLCmd.Parameters.AddWithValue("@RemainingQty", po.RemainingQty);
                     _dal.SQLCmd.Parameters.AddWithValue("@POGeneratedBy", string.IsNullOrEmpty(po.POGeneratedBy) ? (object)DBNull.Value : po.POGeneratedBy);
-                    _dal.SQLCmd.Parameters.AddWithValue("@POGeneratedDate", po.POGeneratedDate);
+                    _dal.SQLCmd.Parameters.AddWithValue("@POGeneratedDate", po.POGeneratedDate ?? "");
                     _dal.SQLCmd.Parameters.AddWithValue("@Remarks", string.IsNullOrEmpty(po.Remarks) ? (object)DBNull.Value : po.Remarks);
-                    _dal.SQLCmd.Parameters.AddWithValue("@POPreparedDate", po.POPreparedDate);
+                    _dal.SQLCmd.Parameters.AddWithValue("@POPreparedDate", po.POPreparedDate ?? "");
                     _dal.SQLCmd.Parameters.AddWithValue("@PODeliveryDate", string.IsNullOrEmpty(po.PODeliveryDate) ? (object)DBNull.Value : po.PODeliveryDate);
                     _dal.SQLCmd.Parameters.AddWithValue("@ProjectStatus", string.IsNullOrEmpty(po.ProjectStatus) ? (object)DBNull.Value : po.ProjectStatus);
                     _dal.SQLCmd.Parameters.AddWithValue("@BOMQty", po.BOMQty);
@@ -276,9 +332,32 @@ namespace WinFormsApp1
                     _dal.SQLCmd.Parameters.AddWithValue("@WithoutBOM", po.WithoutBOM);
                     _dal.SQLCmd.Parameters.AddWithValue("@Currency", string.IsNullOrEmpty(po.Currency) ? (object)DBNull.Value : po.Currency);
                     _dal.SQLCmd.Parameters.AddWithValue("@FXRate", po.FXRate);
-                   
 
                     insertedCount += _dal.SQLCmd.ExecuteNonQuery();
+                }
+
+                // Project / product split stays in PurchaseOrderBOM (can repeat ItemCode)
+                string bomInsert = @"
+                    INSERT INTO PurchaseOrderBOM
+                    (PONumber, ProjectCode, ProductNo, ItemCode, UnitPrice, POQuantity, BOMQuantity, PODate, UserName)
+                    VALUES
+                    (@PONumber, @ProjectCode, @ProductNo, @ItemCode, @UnitPrice, @POQuantity, @BOMQuantity, @PODate, @UserName)";
+
+                foreach (var line in poList)
+                {
+                    _dal.SQLCmd = new SqlCommand(bomInsert, _dal.SQLCon);
+                    _dal.SQLCmd.Parameters.AddWithValue("@PONumber", line.DBOMNo ?? "");
+                    _dal.SQLCmd.Parameters.AddWithValue("@ProjectCode", line.ProjectCode ?? "");
+                    _dal.SQLCmd.Parameters.AddWithValue("@ProductNo", string.IsNullOrWhiteSpace(line.ProductNo) ? "0" : line.ProductNo);
+                    _dal.SQLCmd.Parameters.AddWithValue("@ItemCode", line.ItemCode ?? "");
+                    _dal.SQLCmd.Parameters.AddWithValue("@UnitPrice", line.UnitPrice);
+                    _dal.SQLCmd.Parameters.AddWithValue("@POQuantity", line.RequariedQty);
+                    _dal.SQLCmd.Parameters.AddWithValue("@BOMQuantity", line.BOMQty > 0 ? line.BOMQty : line.RequariedQty);
+                    _dal.SQLCmd.Parameters.AddWithValue("@PODate",
+                        string.IsNullOrWhiteSpace(line.POGeneratedDate) ? DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") : line.POGeneratedDate);
+                    _dal.SQLCmd.Parameters.AddWithValue("@UserName",
+                        string.IsNullOrWhiteSpace(line.POGeneratedBy) ? (object)DBNull.Value : line.POGeneratedBy);
+                    _dal.SQLCmd.ExecuteNonQuery();
                 }
             }
             catch (Exception ex)
