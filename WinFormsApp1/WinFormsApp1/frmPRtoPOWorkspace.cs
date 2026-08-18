@@ -37,6 +37,7 @@ namespace WinFormsApp1
 
         private void frmPRtoPOWorkspace_Load(object sender, EventArgs e)
         {
+            FitToWorkingArea();
             lblUser.Text = AppSession.DisplayLabel;
             txtPreparedBy.Text = _currentUser;
             dtpDelivery.Value = DateTime.Now.AddDays(30);
@@ -45,6 +46,52 @@ namespace WinFormsApp1
             cmbCurrency.SelectedIndex = 0;
             LoadSourcePRs();
             UpdateDropSummary();
+        }
+
+        private void frmPRtoPOWorkspace_Shown(object sender, EventArgs e)
+        {
+            // Set splitter ratios after the form has a real size (avoids crash / bad layout)
+            ApplyResponsiveSplitters();
+        }
+
+        /// <summary>
+        /// Fit form to the working area so it works on laptop / 1080p / large monitors.
+        /// </summary>
+        private void FitToWorkingArea()
+        {
+            Rectangle wa = Screen.FromControl(this).WorkingArea;
+            int targetW = Math.Min(1200, Math.Max(MinimumSize.Width, wa.Width - 40));
+            int targetH = Math.Min(780, Math.Max(MinimumSize.Height, wa.Height - 40));
+            Width = targetW;
+            Height = targetH;
+            Left = wa.Left + (wa.Width - Width) / 2;
+            Top = wa.Top + (wa.Height - Height) / 2;
+            WindowState = FormWindowState.Normal;
+        }
+
+        private void ApplyResponsiveSplitters()
+        {
+            try
+            {
+                if (splitMain.Height > 100)
+                    splitMain.SplitterDistance = Math.Max(splitMain.Panel1MinSize,
+                        Math.Min(splitMain.Height - splitMain.Panel2MinSize - splitMain.SplitterWidth,
+                            (int)(splitMain.Height * 0.58)));
+
+                if (splitTop.Width > 100)
+                    splitTop.SplitterDistance = Math.Max(splitTop.Panel1MinSize,
+                        Math.Min(splitTop.Width - splitTop.Panel2MinSize - splitTop.SplitterWidth,
+                            (int)(splitTop.Width * 0.48)));
+
+                if (splitBottom.Width > 100)
+                    splitBottom.SplitterDistance = Math.Max(splitBottom.Panel1MinSize,
+                        Math.Min(splitBottom.Width - splitBottom.Panel2MinSize - splitBottom.SplitterWidth,
+                            (int)(splitBottom.Width * 0.68)));
+            }
+            catch
+            {
+                // Ignore if control not ready yet
+            }
         }
 
         private void LoadSourcePRs()
