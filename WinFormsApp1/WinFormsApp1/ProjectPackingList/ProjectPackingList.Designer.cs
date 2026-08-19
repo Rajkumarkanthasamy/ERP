@@ -36,6 +36,8 @@ namespace Erp_Project_With_Buttons.Project_Master
             this.lblBomSearch = new System.Windows.Forms.Label();
             this.txtBomSearch = new System.Windows.Forms.TextBox();
             this.btnManualEntry = new System.Windows.Forms.Button();
+            this.btnSelectAllBom = new System.Windows.Forms.Button();
+            this.btnClearBomSelection = new System.Windows.Forms.Button();
             this.tvBOM = new System.Windows.Forms.TreeView();
             this.lblBOMCount = new System.Windows.Forms.Label();
 
@@ -66,6 +68,7 @@ namespace Erp_Project_With_Buttons.Project_Master
             this.lblDimsX2 = new System.Windows.Forms.Label();
             this.txtHeight = new System.Windows.Forms.TextBox();
             this.lblDimsUnit = new System.Windows.Forms.Label();
+            this.cmbDimUnit = new System.Windows.Forms.ComboBox();
             this.btnApplyBoxInfo = new System.Windows.Forms.Button();
             this.lstBoxItems = new System.Windows.Forms.ListBox();
             this.lblBoxItemCount = new System.Windows.Forms.Label();
@@ -207,7 +210,7 @@ namespace Erp_Project_With_Buttons.Project_Master
             this.grpBOM.TabIndex = 0;
 
             this.pnlBomTools.Dock = System.Windows.Forms.DockStyle.Top;
-            this.pnlBomTools.Height = 58;
+            this.pnlBomTools.Height = 82;
             this.pnlBomTools.TabIndex = 2;
 
             this.lblBomSearch.AutoSize = true;
@@ -231,13 +234,33 @@ namespace Erp_Project_With_Buttons.Project_Master
             this.btnManualEntry.UseVisualStyleBackColor = false;
             this.btnManualEntry.Click += new System.EventHandler(this.btnManualEntry_Click);
 
+            this.btnSelectAllBom.Font = new System.Drawing.Font("Segoe UI", 8F, System.Drawing.FontStyle.Bold);
+            this.btnSelectAllBom.Location = new System.Drawing.Point(55, 54);
+            this.btnSelectAllBom.Size = new System.Drawing.Size(90, 24);
+            this.btnSelectAllBom.Text = "Select All";
+            this.btnSelectAllBom.BackColor = System.Drawing.Color.SteelBlue;
+            this.btnSelectAllBom.ForeColor = System.Drawing.Color.White;
+            this.btnSelectAllBom.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnSelectAllBom.UseVisualStyleBackColor = false;
+            this.btnSelectAllBom.Click += new System.EventHandler(this.btnSelectAllBom_Click);
+
+            this.btnClearBomSelection.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.btnClearBomSelection.Location = new System.Drawing.Point(151, 54);
+            this.btnClearBomSelection.Size = new System.Drawing.Size(90, 24);
+            this.btnClearBomSelection.Text = "Clear Sel";
+            this.btnClearBomSelection.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnClearBomSelection.Click += new System.EventHandler(this.btnClearBomSelection_Click);
+
             this.pnlBomTools.Controls.Add(this.lblBomSearch);
             this.pnlBomTools.Controls.Add(this.txtBomSearch);
             this.pnlBomTools.Controls.Add(this.btnManualEntry);
+            this.pnlBomTools.Controls.Add(this.btnSelectAllBom);
+            this.pnlBomTools.Controls.Add(this.btnClearBomSelection);
 
             this.tvBOM.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tvBOM.Font = new System.Drawing.Font("Consolas", 8.5F);
             this.tvBOM.AllowDrop = true;
+            this.tvBOM.CheckBoxes = true;
             this.tvBOM.HideSelection = false;
             this.tvBOM.FullRowSelect = true;
             this.tvBOM.ShowNodeToolTips = true;
@@ -246,6 +269,7 @@ namespace Erp_Project_With_Buttons.Project_Master
             this.tvBOM.ItemDrag += new System.Windows.Forms.ItemDragEventHandler(this.tvBOM_ItemDrag);
             this.tvBOM.DragOver += new System.Windows.Forms.DragEventHandler(this.tvBOM_DragOver);
             this.tvBOM.DragDrop += new System.Windows.Forms.DragEventHandler(this.tvBOM_DragDrop);
+            this.tvBOM.AfterCheck += new System.Windows.Forms.TreeViewEventHandler(this.tvBOM_AfterCheck);
             this.tvBOM.NodeMouseDoubleClick += new System.Windows.Forms.TreeNodeMouseClickEventHandler(this.tvBOM_NodeMouseDoubleClick);
 
             this.lblBOMCount.Dock = System.Windows.Forms.DockStyle.Bottom;
@@ -376,7 +400,7 @@ namespace Erp_Project_With_Buttons.Project_Master
             this.grpBoxInfo.Text = "Box Details";
             this.grpBoxInfo.Font = new System.Drawing.Font("Segoe UI", 8.5F, System.Drawing.FontStyle.Bold);
             this.grpBoxInfo.Dock = System.Windows.Forms.DockStyle.Top;
-            this.grpBoxInfo.Height = 155;
+            this.grpBoxInfo.Height = 180;
             this.grpBoxInfo.TabIndex = 0;
 
             this.lblBoxLabel.AutoSize = true;
@@ -453,20 +477,25 @@ namespace Erp_Project_With_Buttons.Project_Master
             this.txtHeight.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
 
             this.lblDimsUnit.AutoSize = true;
-            this.lblDimsUnit.Font = new System.Drawing.Font("Segoe UI", 7.5F);
-            this.lblDimsUnit.ForeColor = System.Drawing.Color.DimGray;
-            this.lblDimsUnit.Location = new System.Drawing.Point(298, 107);
-            this.lblDimsUnit.Text = "(inches)";
+            this.lblDimsUnit.Font = new System.Drawing.Font("Segoe UI", 8.5F);
+            this.lblDimsUnit.Location = new System.Drawing.Point(8, 134);
+            this.lblDimsUnit.Text = "Unit :";
             this.lblDimsUnit.TabIndex = 12;
 
+            this.cmbDimUnit.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cmbDimUnit.Font = new System.Drawing.Font("Segoe UI", 8.5F);
+            this.cmbDimUnit.Location = new System.Drawing.Point(86, 131);
+            this.cmbDimUnit.Size = new System.Drawing.Size(100, 23);
+            this.cmbDimUnit.TabIndex = 13;
+
             this.btnApplyBoxInfo.Font = new System.Drawing.Font("Segoe UI", 8.5F, System.Drawing.FontStyle.Bold);
-            this.btnApplyBoxInfo.Location = new System.Drawing.Point(130, 130);
+            this.btnApplyBoxInfo.Location = new System.Drawing.Point(200, 128);
             this.btnApplyBoxInfo.Size = new System.Drawing.Size(80, 27);
             this.btnApplyBoxInfo.Text = "Apply";
             this.btnApplyBoxInfo.BackColor = System.Drawing.Color.FromArgb(34, 139, 34);
             this.btnApplyBoxInfo.ForeColor = System.Drawing.Color.White;
             this.btnApplyBoxInfo.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnApplyBoxInfo.TabIndex = 13;
+            this.btnApplyBoxInfo.TabIndex = 14;
             this.btnApplyBoxInfo.UseVisualStyleBackColor = false;
             this.btnApplyBoxInfo.Click += new System.EventHandler(this.btnApplyBoxInfo_Click);
 
@@ -483,6 +512,7 @@ namespace Erp_Project_With_Buttons.Project_Master
             this.grpBoxInfo.Controls.Add(this.lblDimsX2);
             this.grpBoxInfo.Controls.Add(this.txtHeight);
             this.grpBoxInfo.Controls.Add(this.lblDimsUnit);
+            this.grpBoxInfo.Controls.Add(this.cmbDimUnit);
             this.grpBoxInfo.Controls.Add(this.btnApplyBoxInfo);
 
             this.lstBoxItems.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -643,6 +673,8 @@ namespace Erp_Project_With_Buttons.Project_Master
         private System.Windows.Forms.Label lblBomSearch;
         private System.Windows.Forms.TextBox txtBomSearch;
         private System.Windows.Forms.Button btnManualEntry;
+        private System.Windows.Forms.Button btnSelectAllBom;
+        private System.Windows.Forms.Button btnClearBomSelection;
         private System.Windows.Forms.TreeView tvBOM;
         private System.Windows.Forms.Label lblBOMCount;
 
@@ -675,6 +707,7 @@ namespace Erp_Project_With_Buttons.Project_Master
         private System.Windows.Forms.Label lblDimsX2;
         private System.Windows.Forms.TextBox txtHeight;
         private System.Windows.Forms.Label lblDimsUnit;
+        private System.Windows.Forms.ComboBox cmbDimUnit;
         private System.Windows.Forms.Button btnApplyBoxInfo;
         private System.Windows.Forms.ListBox lstBoxItems;
         private System.Windows.Forms.Label lblBoxItemCount;

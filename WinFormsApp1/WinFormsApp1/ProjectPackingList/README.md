@@ -4,28 +4,32 @@
 
 Replace your existing form files with:
 
-1. `ProjectPackingList.cs`
-2. `ProjectPackingList.Designer.cs`
+1. `ProjectPackingList.cs`  (or merge into your `packingUpdatedList.cs`)
+2. `ProjectPackingList.Designer.cs`  (or merge into your designer)
 
 Optional: paste `PACKING_LIST_DAL_SNIPPET.cs` into `DataAccessLayer.cs` if you prefer
-MachineBOM via DAL. The form already loads MachineBOM with a direct SQL query, so the
-snippet is not required for compile/run.
+MachineBOM via DAL.
 
 ## What changed
 
 | Feature | Behavior |
 |--------|----------|
-| Left panel | TreeView: ProjectBOM products with MachineBOM items under each (match ProjectCode + ProductNo) |
-| Drag header | Product node drag moves product **+ all its machine children** |
-| Drag item | Child node drag moves **only that machine item** |
-| Search | Filters products/items in the left tree |
-| Manual entry | Code, Name, Type (Product/Item), Qty — no temp BomID |
-| Double-click | Renames description; saved to DB `ProductName` and PDF |
-| Pallets | Same fields as boxes (Label, L×W×H, GW, NW); multiple allowed; saved as `ItemType=PALLET` |
-| Non-box | Still ship-loose (no dims) |
-| PDF | Plain tables — **no blue/grey background fills** |
+| Left panel | TreeView: ProjectBOM products with MachineBOM items under each |
+| **Select All** | Checks all visible BOM nodes; drag any checked node to move **all checked** |
+| **Checkboxes** | Tick products/items; parent check cascades to children |
+| Drag to box/pallet | Drop on box list or box items (or use **> To Box**) |
+| Drag to Non-Box | Drop on Non-Box list (or use **Non-Box** button) |
+| **Dim unit** | Dropdown: inches, cm, mm, feet, m — saved in `BoxDimensions` as `L.. x W.. x H.. (unit)` |
+| Search / Manual / Rename / Pallets / PDF | Same as before |
+
+## How to use multi-select drag
+
+1. Click **Select All** (or tick individual checkboxes).
+2. Select a target box/pallet (or create one).
+3. Drag from the BOM tree onto the box list / box items, **or** onto Non-Box.
+4. Or use **> To Box** / **Non-Box** buttons — they also use the checked selection.
 
 ## Notes
 
-- Namespace remains `Erp_Project_With_Buttons.Project_Master`.
-- If `fnMachineBOMPackingList` is missing, the form tries a fallback and may skip MachineBOM with a status message.
+- Repo namespace: `Erp_Project_With_Buttons.Project_Master` / class `ProjectPackingList`.
+- Your local paste may use `Erp_Project_With_Buttons.PackingList` / `packingUpdatedList` — keep your namespace/class name; only merge the new methods + designer controls (`btnSelectAllBom`, `btnClearBomSelection`, `cmbDimUnit`, `tvBOM.CheckBoxes = true`).

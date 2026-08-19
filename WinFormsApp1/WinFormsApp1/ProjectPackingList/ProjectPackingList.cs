@@ -86,9 +86,12 @@ namespace Erp_Project_With_Buttons.Project_Master
         public string Length { get; set; }
         public string Width { get; set; }
         public string Height { get; set; }
+        /// <summary>inches, cm, mm, feet, m</summary>
+        public string DimUnit { get; set; } = "inches";
         public string Dimensions =>
             (!string.IsNullOrWhiteSpace(Length) || !string.IsNullOrWhiteSpace(Width) || !string.IsNullOrWhiteSpace(Height))
                 ? "L" + Length + " x W" + Width + " x H" + Height
+                    + (string.IsNullOrWhiteSpace(DimUnit) ? "" : " (" + DimUnit + ")")
                 : "";
         public List<BomItem> Items { get; set; } = new List<BomItem>();
 
@@ -116,11 +119,14 @@ namespace Erp_Project_With_Buttons.Project_Master
         private const string ConnStr =
             @"Data Source=.\SQLEXPRESS;Initial Catalog=ERP_Database;Integrated Security=True";
 
+        private static readonly string[] DimUnitOptions = { "inches", "cm", "mm", "feet", "m" };
+
         private List<BomItem> _bom = new List<BomItem>();
         private List<PackingBox> _boxes = new List<PackingBox>();
         private List<BomItem> _nonBox = new List<BomItem>();
         private int _boxCtr = 0;
         private bool _loading = false;
+        private bool _suppressCheck = false;
         private string _projectCode = "";
         private string _bomSearch = "";
         DataAccessLayer DAL = new DataAccessLayer();
@@ -135,10 +141,18 @@ namespace Erp_Project_With_Buttons.Project_Master
 
         private void ProjectPackingList_Load(object sender, EventArgs e)
         {
+            InitDimUnitCombo();
             LoadProjectCombo();
             GeneratePackingNo();
             SetBoxDetailEnabled(false);
-            SetStatus("Ready. Select a project and click Load BOM.");
+            SetStatus("Ready. Select a project and click Load BOM. Check items (or Select All) then drag to box/pallet/non-box.");
+        }
+
+        private void InitDimUnitCombo()
+        {
+            cmbDimUnit.Items.Clear();
+            cmbDimUnit.Items.AddRange(DimUnitOptions);
+            cmbDimUnit.SelectedIndex = 0; // inches
         }
 
         // =========================================================================
@@ -205,11 +219,39 @@ namespace Erp_Project_With_Buttons.Project_Master
                 .ToList();
         }
 
-        private void ParseDimensions(string dbValue, out string length, out string width, out string height)
+        private void ParseDimensions(string dbValue, out string length, out string width, out string height, out string unit)
         {
             length = width = height = "";
+            unit = "inches";
             if (string.IsNullOrWhiteSpace(dbValue)) return;
-            var parts = dbValue.Split('x');
+
+            string raw = dbValue.Trim();
+            // Trailing unit: "... (cm)" or "... cm" / "... inches"
+            int openParen = raw.LastIndexOf('(');
+            int closeParen = raw.LastIndexOf(')');
+            if (openParen >= 0 && closeParen > openParen)
+            {
+                string u = raw.Substring(openParen + 1, closeParen - openParen - 1).Trim();
+                if (DimUnitOptions.Any(x => x.Equals(u, StringComparison.OrdinalIgnoreCase)))
+                {
+                    unit = DimUnitOptions.First(x => x.Equals(u, StringComparison.OrdinalIgnoreCase));
+                    raw = raw.Substring(0, openParen).Trim();
+                }
+            }
+            else
+            {
+                foreach (string opt in DimUnitOptions.OrderByDescending(o => o.Length))
+                {
+                    if (raw.EndsWith(opt, StringComparison.OrdinalIgnoreCase))
+                    {
+                        unit = opt;
+                        raw = raw.Substring(0, raw.Length - opt.Length).Trim();
+                        break;
+                    }
+                }
+            }
+
+            var parts = raw.Split('x');
             foreach (var part in parts)
             {
                 var p = part.Trim();
@@ -350,8 +392,8 @@ ORDER BY mb.ProductNo, mb.ItemName;";
                     int boxNumber = Convert.ToInt32(dr["BoxNumber"]);
                     PackingBox box = _boxes.FirstOrDefault(b => b.BoxNumber == boxNumber);
 
-                    string length, width, height;
-                    ParseDimensions(dr["BoxDimensions"].ToString(), out length, out width, out height);
+                    string length, width, height, unit;
+                    ParseDimensions(dr["BoxDimensions"].ToString(), out length, out width, out height, out unit);
 
                     if (box == null)
                     {
@@ -364,7 +406,8 @@ ORDER BY mb.ProductNo, mb.ItemName;";
                             NetWeight = Convert.ToDecimal(dr["NetWeight"]),
                             Length = length,
                             Width = width,
-                            Height = height
+                            Height = height,
+                            DimUnit = unit
                         };
                         _boxes.Add(box);
                     }
@@ -474,6 +517,7 @@ ORDER BY mb.ProductNo, mb.ItemName;";
             box.Length = txtLength.Text.Trim();
             box.Width = txtWidth.Text.Trim();
             box.Height = txtHeight.Text.Trim();
+            box.DimUnit = cmbDimUnit.SelectedItem != null ? cmbDimUnit.SelectedItem.ToString() : "inches";
 
             if (string.IsNullOrWhiteSpace(box.BoxLabel))
                 box.BoxLabel = (box.ContainerType == "PALLET" ? "Pallet " : "Box ") + box.BoxNumber;
@@ -505,6 +549,9 @@ ORDER BY mb.ProductNo, mb.ItemName;";
                 txtLength.Text = box.Length ?? "";
                 txtWidth.Text = box.Width ?? "";
                 txtHeight.Text = box.Height ?? "";
+                string unit = string.IsNullOrWhiteSpace(box.DimUnit) ? "inches" : box.DimUnit;
+                int ui = cmbDimUnit.FindStringExact(unit);
+                cmbDimUnit.SelectedIndex = ui >= 0 ? ui : 0;
                 grpBoxInfo.Text = box.ContainerType == "PALLET" ? "Pallet Details" : "Box Details";
                 lblBoxLabel.Text = box.ContainerType == "PALLET" ? "Pallet Label :" : "Box Label :";
             }
@@ -530,6 +577,8 @@ ORDER BY mb.ProductNo, mb.ItemName;";
             txtLength.Text = "";
             txtWidth.Text = "";
             txtHeight.Text = "";
+            if (cmbDimUnit.Items.Count > 0)
+                cmbDimUnit.SelectedIndex = 0;
         }
 
         private void MarkDirty()
@@ -539,8 +588,67 @@ ORDER BY mb.ProductNo, mb.ItemName;";
         }
 
         // =========================================================================
-        //  SELECTION HELPERS (TreeView)
+        //  SELECTION HELPERS (TreeView checkboxes + Select All)
         // =========================================================================
+
+        private IEnumerable<TreeNode> EnumerateNodes(TreeNodeCollection nodes)
+        {
+            foreach (TreeNode n in nodes)
+            {
+                yield return n;
+                foreach (var c in EnumerateNodes(n.Nodes))
+                    yield return c;
+            }
+        }
+
+        private void SetAllBomChecked(bool check)
+        {
+            _suppressCheck = true;
+            tvBOM.BeginUpdate();
+            try
+            {
+                foreach (var n in EnumerateNodes(tvBOM.Nodes))
+                    n.Checked = check;
+            }
+            finally
+            {
+                tvBOM.EndUpdate();
+                _suppressCheck = false;
+            }
+            int count = EnumerateNodes(tvBOM.Nodes).Count(n => n.Checked);
+            SetStatus(check ? ("Selected " + count + " node(s). Drag to box/pallet or Non-Box.") : "Selection cleared.");
+        }
+
+        private void btnSelectAllBom_Click(object sender, EventArgs e) => SetAllBomChecked(true);
+
+        private void btnClearBomSelection_Click(object sender, EventArgs e) => SetAllBomChecked(false);
+
+        private void tvBOM_AfterCheck(object sender, TreeViewEventArgs e)
+        {
+            if (_suppressCheck || e.Node == null) return;
+            _suppressCheck = true;
+            try
+            {
+                // Cascade check state to children
+                foreach (TreeNode child in EnumerateNodes(e.Node.Nodes))
+                    child.Checked = e.Node.Checked;
+
+                // If all siblings checked, check parent; if any unchecked, uncheck parent
+                if (e.Node.Parent != null)
+                {
+                    bool all = true;
+                    foreach (TreeNode sib in e.Node.Parent.Nodes)
+                    {
+                        if (!sib.Checked) { all = false; break; }
+                    }
+                    e.Node.Parent.Checked = all;
+                }
+            }
+            finally
+            {
+                _suppressCheck = false;
+            }
+        }
 
         private List<BomItem> GetSelectedBomItems(bool expandProductWithChildren)
         {
@@ -553,23 +661,37 @@ ORDER BY mb.ProductNo, mb.ItemName;";
                 if (seen.Add(bi.Key)) result.Add(bi);
             }
 
-            TreeNode n = tvBOM.SelectedNode;
-            if (n == null) return result;
-
-            var item = n.Tag as BomItem;
-            if (item == null) return result;
-
-            if (expandProductWithChildren &&
-                string.Equals(item.BomKind, "PRODUCT", StringComparison.OrdinalIgnoreCase))
+            void AddNode(TreeNode n)
             {
-                Add(item);
-                foreach (TreeNode child in n.Nodes)
-                    Add(child.Tag as BomItem);
+                var item = n?.Tag as BomItem;
+                if (item == null) return;
+
+                if (expandProductWithChildren &&
+                    string.Equals(item.BomKind, "PRODUCT", StringComparison.OrdinalIgnoreCase))
+                {
+                    Add(item);
+                    foreach (TreeNode child in n.Nodes)
+                        Add(child.Tag as BomItem);
+                }
+                else
+                {
+                    Add(item);
+                }
             }
-            else
+
+            // Multi-select via checkboxes (Select All / individual checks)
+            var checkedNodes = EnumerateNodes(tvBOM.Nodes).Where(n => n.Checked).ToList();
+            if (checkedNodes.Count > 0)
             {
-                Add(item);
+                foreach (var n in checkedNodes)
+                    AddNode(n);
+                return result;
             }
+
+            // Fallback: currently selected node only
+            if (tvBOM.SelectedNode != null)
+                AddNode(tvBOM.SelectedNode);
+
             return result;
         }
 
@@ -597,6 +719,7 @@ ORDER BY mb.ProductNo, mb.ItemName;";
             RefreshBom();
             RefreshBoxItems();
             MarkDirty();
+            SetStatus("Moved " + sel.Count + " item(s) to " + box.BoxLabel + ".");
         }
 
         private void btnMoveToList_Click(object sender, EventArgs e)
@@ -624,6 +747,7 @@ ORDER BY mb.ProductNo, mb.ItemName;";
                     _nonBox.Add(i);
             }
             RefreshBom(); RefreshNonBox(); MarkDirty();
+            SetStatus("Marked " + sel.Count + " item(s) as Non-Box.");
         }
 
         // =========================================================================
@@ -634,8 +758,14 @@ ORDER BY mb.ProductNo, mb.ItemName;";
         {
             if (!(e.Item is TreeNode node) || !(node.Tag is BomItem)) return;
             tvBOM.SelectedNode = node;
+
+            // If nothing checked yet, include the node under the mouse (and children for products)
+            if (!EnumerateNodes(tvBOM.Nodes).Any(n => n.Checked))
+                node.Checked = true;
+
             var items = GetSelectedBomItems(true);
             if (items.Count == 0) return;
+            SetStatus("Dragging " + items.Count + " item(s)… drop on a box/pallet or Non-Box.");
             tvBOM.DoDragDrop(new DragPayload("BOM", items), DragDropEffects.Move);
         }
 
