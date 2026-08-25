@@ -33,6 +33,7 @@ namespace WinFormsApp1
     {
         private PurchaseRequestDAL _dal;
         private DataTable _bomItems;
+        private Dictionary<string, List<string>> _vendorCache;
         private const decimal PR_LIMIT = 1200000; // 12 Lakh limit
         private bool _isSelectAllChanging = false;
 
@@ -110,9 +111,12 @@ namespace WinFormsApp1
 
             try
             {
+                Cursor = Cursors.WaitCursor;
+
                 _bomItems = _dal.GetBOMItemsByProject(projectCode, productNo);
+                _vendorCache = _dal.GetVendorsForProject(projectCode);
                 LoadBOMGrid();
-                txtTotalItems.Text = _bomItems.Rows.Count.ToString();
+                txtTotalItems.Text = dgvBOMItems.Rows.Count.ToString();
             }
             catch (Exception ex)
             {
@@ -120,116 +124,124 @@ namespace WinFormsApp1
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 //LoadSampleBOMData(); // Fallback
             }
+            finally
+            {
+                Cursor = Cursors.Default;
+            }
         }
 
         private void LoadBOMGrid()
         {
+            dgvBOMItems.SuspendLayout();
             dgvBOMItems.Rows.Clear();
 
-            // MessageBox.Show(_bomItems.Rows.Count.ToString(), "Count of the BOM list..!");//total 637 lines but only 273 lines only in UI how what when wrong
-            foreach (DataRow row in _bomItems.Rows)
+            try
             {
-                bool alreadyInPR = row["ConvertedQty"] != DBNull.Value && int.Parse(row["ConvertedQty"].ToString()) == int.Parse(row["BOMQty"].ToString()) ? true : false;
-                //MessageBox.Show(row["ConvertedQty"].ToString());
-                float balanceQty = row["BOMBalanceIssueQty"] != DBNull.Value ? Convert.ToSingle(row["BOMBalanceIssueQty"]) : 0;
-
-                if (balanceQty <= 0 || int.Parse(row["Pending PO QTY"].ToString()) == int.Parse(row["BOMQty"].ToString()))//alreadyInPR
+                foreach (DataRow row in _bomItems.Rows)
                 {
-                    //MessageBox.Show($"BOMBalanceIssueQty :{balanceQty}\n\n Pending PO QTY:{row["Pending PO QTY"].ToString()}\n\n BOMQty : {row["BOMQty"].ToString()}", "Skipping Row:");
+                    // SQL already filters fully-issued / fully pending-PO rows; keep a cheap guard.
+                    float balanceQty = row["BOMBalanceIssueQty"] != DBNull.Value
+                        ? Convert.ToSingle(row["BOMBalanceIssueQty"]) : 0;
+                    if (balanceQty <= 0)
+                        continue;
 
-                    // Skip items that are fully purchased or already in PR
-                    continue;
+                    bool alreadyInPR = row["ConvertedQty"] != DBNull.Value
+                        && Convert.ToDecimal(row["ConvertedQty"]) == Convert.ToDecimal(row["BOMQty"]);
+
+                    decimal balanceQty_ = Convert.ToDecimal(row["BOMBalanceIssueQty"]);
+                    decimal unitCost_ = row["UnitCost"] != DBNull.Value ? Convert.ToDecimal(row["UnitCost"]) : 0m;
+                    string totalCost = (balanceQty_ * unitCost_).ToString("N2");
+
+                    string preferredVendor = row["VendorCode"]?.ToString();
+                    if (string.IsNullOrWhiteSpace(preferredVendor) || preferredVendor == "-")
+                        preferredVendor = row["Vendor"]?.ToString();
+
+                    int idx = dgvBOMItems.Rows.Add(
+                        false,
+                        row["ProjectBOMCode"].ToString(),
+                        row["ItemName"].ToString(),
+                        row["ItemDescription"].ToString(),
+                        row["ProductCode"].ToString(),
+                        row["ProductNo"].ToString(),
+                        row["IssuedQty"].ToString(),
+                        row["BOMQty"].ToString(),
+                        row["ConvertedQty"].ToString(),
+                        row["Pending PO QTY"].ToString(),
+                        row["POQty"].ToString(),
+                        row["AvailableQty"].ToString(),
+                        row["BOMBalanceIssueQty"].ToString(),
+                        row["UnitCost"].ToString(),
+                        totalCost,
+                        "", // vendor set below
+                        row["HSNSACCode"].ToString(),
+                        row["Location"].ToString(),
+                        alreadyInPR
+                            ? "Already in PR '" + row["Pending PO QTY"] + "'"
+                            : "NO Pending PO"
+                    );
+
+                    FillVendorDropdownFromCache(idx, row["ItemName"].ToString(), preferredVendor);
+
+                    float existPOQty = row["POQty"] != DBNull.Value ? Convert.ToSingle(row["POQty"]) : 0;
+                    if (alreadyInPR || existPOQty == Convert.ToDouble(row["BOMQty"].ToString()))
+                    {
+                        dgvBOMItems.Rows[idx].DefaultCellStyle.BackColor = Color.LightGreen;
+                        DataGridViewCheckBoxCell chk = (DataGridViewCheckBoxCell)dgvBOMItems.Rows[idx].Cells["colSelect"];
+                        chk.ReadOnly = true;
+                    }
+                    else if (existPOQty > 0)
+                    {
+                        dgvBOMItems.Rows[idx].DefaultCellStyle.BackColor = Color.LightYellow;
+                    }
                 }
+            }
+            finally
+            {
+                dgvBOMItems.ResumeLayout();
+            }
+        }
 
-                string fixedCost = row["FixedCost"] != DBNull.Value
-                    ? Convert.ToDecimal(row["FixedCost"]).ToString("N2")
-                    : "0.00";
+        private void FillVendorDropdownFromCache(int rowIndex, string itemCode, string preferredVendor)
+        {
+            DataGridViewComboBoxCell vendorCell =
+                (DataGridViewComboBoxCell)dgvBOMItems.Rows[rowIndex].Cells["colVendor"];
+            vendorCell.Items.Clear();
 
+            List<string> vendors = null;
+            if (_vendorCache != null)
+                _vendorCache.TryGetValue(itemCode ?? "", out vendors);
 
-                decimal balanceQty_ = Convert.ToDecimal(row["BOMBalanceIssueQty"]);
-                decimal unitCost_ = Convert.ToDecimal(row["UnitCost"]);
-
-                string totalCost = (balanceQty_ * unitCost_).ToString();//"0.00"
-
-                //MessageBox.Show(row["HSNSACCode"].ToString());
-
-                int idx = dgvBOMItems.Rows.Add(
-                    false, // Select checkbox
-                    row["ProjectBOMCode"].ToString(),
-                    row["ItemName"].ToString(),
-                    row["ItemDescription"].ToString(),
-                    row["ProductCode"].ToString(),
-                    row["ProductNo"].ToString(),
-                    row["IssuedQty"].ToString(),
-                    row["BOMQty"].ToString(),//ConvertedQty
-                    row["ConvertedQty"].ToString(),//
-                    row["Pending PO QTY"].ToString(),
-                    row["POQty"].ToString(),//
-                    row["AvailableQty"].ToString(),//
-                    row["BOMBalanceIssueQty"].ToString(), // UnitCost
-                    row["UnitCost"].ToString(), // UnitCost
-                    totalCost,
-                   "", // Total cost - calculated
-                       // "", // Vendor - dropdown
-                    row["HSNSACCode"].ToString(),
-                    row["Location"].ToString(),//Location
-                                               //
-                    alreadyInPR ? "Already in PR'" + row["Pending PO QTY"].ToString() + "'" : "NO Pending PO"
-                );
-
-                // Load vendor dropdown for this item
-                LoadVendorDropdown(idx, row["ItemName"].ToString());
-
-                float existPOQty = row["POQty"] != DBNull.Value ? Convert.ToSingle(row["POQty"]) : 0;
-
-
-                // Color code rows
-                if (alreadyInPR  || existPOQty == Convert.ToDouble(row["BOMQty"].ToString()))
+            if (vendors != null)
+            {
+                foreach (string v in vendors)
                 {
-                    dgvBOMItems.Rows[idx].DefaultCellStyle.BackColor = Color.LightGreen;
-                    DataGridViewCheckBoxCell chk = (DataGridViewCheckBoxCell)dgvBOMItems.Rows[idx].Cells["colSelect"];
-                    chk.ReadOnly = true;
+                    if (!vendorCell.Items.Contains(v))
+                        vendorCell.Items.Add(v);
                 }
-                else if (existPOQty > 0)
-                {
-                    dgvBOMItems.Rows[idx].DefaultCellStyle.BackColor = Color.LightYellow;
-                }
+            }
+
+            // Prefer last-PO vendor from BOM query, then MachineBOM.Vendor, else first receipt vendor
+            if (!string.IsNullOrWhiteSpace(preferredVendor) && preferredVendor != "-")
+            {
+                if (!vendorCell.Items.Contains(preferredVendor))
+                    vendorCell.Items.Add(preferredVendor);
+                vendorCell.Value = preferredVendor;
+            }
+            else if (vendorCell.Items.Count > 0)
+            {
+                vendorCell.Value = vendorCell.Items[0];
+            }
+            else
+            {
+                vendorCell.Items.Add("Unknown");
+                vendorCell.Value = "Unknown";
             }
         }
 
         private void LoadVendorDropdown(int rowIndex, string itemCode)
         {
-            try
-            {
-                DataTable vendors = _dal.GetVendorsForItem(itemCode);
-                DataGridViewComboBoxCell vendorCell = (DataGridViewComboBoxCell)dgvBOMItems.Rows[rowIndex].Cells["colVendor"];
-                vendorCell.Items.Clear();
-
-                // foreach (DataRow v in vendors.Rows)
-                // {
-                // string vendorText = v["VendorCode"].ToString();
-                // if (v["IsPreviousVendor"] != DBNull.Value && Convert.ToBoolean(v["IsPreviousVendor"]))
-                //  vendorText += " (Previous)";
-                foreach (DataRow dr in vendors.Rows)
-                {
-                    if (!vendorCell.Items.Contains(dr["VendorCode"].ToString()))
-                        vendorCell.Items.Add(dr["VendorCode"].ToString());
-                }
-                //vendorCell.Items.Add(vendorText);
-                //}
-
-                if (vendorCell.Items.Count > 0)
-                    vendorCell.Value = vendorCell.Items[0];
-            }
-            catch
-            {
-                // Fallback vendors
-                DataGridViewComboBoxCell vendorCell = (DataGridViewComboBoxCell)dgvBOMItems.Rows[rowIndex].Cells["colVendor"];
-                vendorCell.Items.Add("Vendor A");
-                vendorCell.Items.Add("Vendor B");
-                vendorCell.Items.Add("Vendor C");
-                vendorCell.Value = "Vendor A";
-            }
+            // Kept for compatibility; prefer FillVendorDropdownFromCache (no per-row DB call).
+            FillVendorDropdownFromCache(rowIndex, itemCode, null);
         }
 
         private void LoadSampleBOMData()

@@ -113,119 +113,119 @@ namespace WinFormsApp1
             return dt;
         }
 
+        /// <summary>
+        /// Fast BOM load: replaces per-row correlated subqueries with OUTER APPLY / pre-aggregated joins.
+        /// Also filters out fully issued / fully pending-PO rows in SQL (same rules as the UI skip).
+        /// </summary>
         public DataTable GetBOMItemsByProject(string projectCode, string productNo = null)
         {
             DataTable dt = new DataTable();
             try
             {
                 SQLCon.Open();
-                SQLCmd = new SqlCommand(@$"SELECT
-                                            MachineBOM.ProjectBOMCode,
-                                            MachineBOM.ProductNo,
-                                            PB.ProductCode,
-                                            MachineBOM.ItemName,
-                                            ItemMaster.ItemDescription,
-                                            MachineBOM.Quantity AS BOMQty,
+                SQLCmd = new SqlCommand(@"
+SELECT
+    MachineBOM.ProjectBOMCode,
+    MachineBOM.ProductNo,
+    PB.ProductCode,
+    MachineBOM.ItemName,
+    ItemMaster.ItemDescription,
+    MachineBOM.Quantity AS BOMQty,
+    ISNULL(Iss.IssuedQty, 0) AS IssuedQty,
+    MachineBOM.Quantity - ISNULL(Iss.IssuedQty, 0) AS BOMBalanceIssueQty,
+    ISNULL(Conv.ConvertedQty, 0) AS ConvertedQty,
+    ISNULL(Pend.RemainingQty, 0) AS [Pending PO QTY],
+    ISNULL(Vend.VendorCode, '-') AS VendorCode,
+    ItemMaster.AvailableQty,
+    ItemMaster.UnitCost,
+    MachineBOM.ProjectCode,
+    ItemMaster.Location,
+    ItemMaster.HSNSACCode,
+    MachineBOM.Vendor,
+    MachineBOM.DrawingNo,
+    MachineBOM.ExtraItem,
+    MachineBOM.ProjectStatus,
+    MachineBOM.AddedBy,
+    MachineBOM.AddedDate,
+    MachineBOM.ReturnQty,
+    MachineBOM.POQty,
+    MachineBOM.ProductType,
+    MachineBOM.FixedCost
+FROM [ERP_Database].[dbo].[MachineBOM] AS MachineBOM
+OUTER APPLY (
+    SELECT TOP 1 ProductCode
+    FROM ProjectBOM AS PB
+    WHERE PB.ProjectCode = MachineBOM.ProjectCode
+      AND PB.ProductNo = MachineBOM.ProductNo
+) AS PB
+INNER JOIN ItemMaster
+    ON ItemMaster.ItemCode = MachineBOM.ItemName
+OUTER APPLY (
+    SELECT SUM(IssuedQuantity) AS IssuedQty
+    FROM Issued
+    WHERE Project_Code = MachineBOM.ProjectCode
+      AND ProductNo = MachineBOM.ProductNo
+      AND Item_Code = MachineBOM.ItemName
+) AS Iss
+LEFT JOIN (
+    SELECT BOMProjectCode, ItemCode, SUM(ConvertedQty) AS ConvertedQty
+    FROM BOMtoPRConversion
+    GROUP BY BOMProjectCode, ItemCode
+) AS Conv
+    ON Conv.BOMProjectCode = MachineBOM.ProjectCode
+   AND Conv.ItemCode = MachineBOM.ItemName
+OUTER APPLY (
+    SELECT TOP 1
+        pob.POQuantity - ISNULL(SUM(r.Quantity), 0) AS RemainingQty
+    FROM PurchaseOrderBOM pob
+    LEFT JOIN Receipt r
+        ON r.RefNumber = pob.PONumber
+       AND r.ItemCode = pob.ItemCode
+       AND r.ProductNo = pob.ProductNo
+       AND r.BOMProjectCode = pob.ProjectCode
+    WHERE pob.ProjectCode = MachineBOM.ProjectCode
+      AND pob.ItemCode = MachineBOM.ItemName
+      AND pob.ProductNo = MachineBOM.ProductNo
+    GROUP BY
+        pob.PONumber,
+        pob.ProjectCode,
+        pob.ProductNo,
+        pob.ItemCode,
+        pob.POQuantity
+    ORDER BY RemainingQty DESC
+) AS Pend
+OUTER APPLY (
+    SELECT TOP 1 MAX(PO.VendorCode) AS VendorCode
+    FROM PurchaseOrderBOM pob
+    LEFT JOIN Receipt r
+        ON r.RefNumber = pob.PONumber
+       AND r.ItemCode = pob.ItemCode
+       AND r.ProductNo = pob.ProductNo
+       AND r.BOMProjectCode = pob.ProjectCode
+    JOIN PurchaseOrder PO
+        ON PO.DBOMNo = pob.PONumber
+    WHERE pob.ProjectCode = MachineBOM.ProjectCode
+      AND pob.ItemCode = MachineBOM.ItemName
+      AND pob.ProductNo = MachineBOM.ProductNo
+    GROUP BY
+        pob.PONumber,
+        pob.ProjectCode,
+        pob.ProductNo,
+        pob.ItemCode
+    ORDER BY pob.PONumber DESC
+) AS Vend
+WHERE MachineBOM.ProjectCode = @ProjectCode
+  AND (
+        @ProductFilter IS NULL
+        OR PB.ProductCode = @ProductFilter
+        OR MachineBOM.ProductNo = @ProductFilter
+      )
+  -- Same skip rules previously applied in LoadBOMGrid (C#)
+  AND (MachineBOM.Quantity - ISNULL(Iss.IssuedQty, 0)) > 0
+  AND ISNULL(Pend.RemainingQty, 0) <> MachineBOM.Quantity
+ORDER BY MachineBOM.ItemName;", SQLCon);
 
-                                           ISNULL((SELECT SUM(IssuedQuantity) FROM Issued where Project_Code=MachineBOM.ProjectCode and ProductNo=MachineBOM.ProductNo and Item_Code=MachineBOM.ItemName), 0) as IssuedQty,
-                                           MachineBOM.Quantity - ISNULL((SELECT SUM(IssuedQuantity) FROM Issued where Project_Code=MachineBOM.ProjectCode and ProductNo=MachineBOM.ProductNo and Item_Code=MachineBOM.ItemName), 0) AS BOMBalanceIssueQty,
-
-                                            -- Converted Qty
-                                            ISNULL((
-                                                SELECT SUM(ConvertedQty)
-                                                FROM BOMtoPRConversion
-                                                WHERE BOMProjectCode = MachineBOM.ProjectCode
-                                                 -- AND ProductNo = MachineBOM.ProductNo
-                                                  AND ItemCode = MachineBOM.ItemName
-                                            ), 0) AS ConvertedQty,
-
-                                            -- BOM Balance Issue Qty
-   
-
-                                            -- Pending PO QTY (Fixed: Added ORDER BY for deterministic TOP 1)
-                                            ISNULL((
-                                                SELECT TOP 1
-                                                    pob.POQuantity - ISNULL(SUM(r.Quantity), 0) AS RemainingQty
-                                                FROM PurchaseOrderBOM pob
-                                                LEFT JOIN Receipt r 
-                                                    ON r.RefNumber = pob.PONumber
-                                                    AND r.ItemCode = pob.ItemCode
-                                                    AND r.ProductNo = pob.ProductNo
-                                                    AND r.BOMProjectCode = pob.ProjectCode
-                                                WHERE pob.ProjectCode = MachineBOM.ProjectCode
-                                                  AND pob.ItemCode = MachineBOM.ItemName
-                                                  AND pob.ProductNo = MachineBOM.ProductNo
-                                                GROUP BY 
-                                                    pob.PONumber,
-                                                    pob.ProjectCode,
-                                                    pob.ProductNo,
-                                                    pob.ItemCode,
-                                                    pob.POQuantity
-                                                ORDER BY RemainingQty DESC  -- Deterministic: shows highest remaining first
-                                            ), 0) AS [Pending PO QTY],
-
-                                            -- Vendor Code (Fixed: Added ORDER BY for deterministic TOP 1)
-                                            ISNULL((
-                                                SELECT TOP 1
-                                                    MAX(PO.VendorCode) AS VendorCode
-                                                FROM PurchaseOrderBOM pob
-                                                LEFT JOIN Receipt r 
-                                                    ON r.RefNumber = pob.PONumber
-                                                    AND r.ItemCode = pob.ItemCode
-                                                    AND r.ProductNo = pob.ProductNo
-                                                    AND r.BOMProjectCode = pob.ProjectCode
-                                                JOIN PurchaseOrder PO 
-                                                    ON PO.DBOMNo = pob.PONumber
-                                                WHERE pob.ProjectCode = MachineBOM.ProjectCode
-                                                  AND pob.ItemCode = MachineBOM.ItemName
-                                                  AND pob.ProductNo = MachineBOM.ProductNo
-                                                GROUP BY 
-                                                    pob.PONumber,
-                                                    pob.ProjectCode,
-                                                    pob.ProductNo,
-                                                    pob.ItemCode
-                                                ORDER BY pob.PONumber DESC  -- Deterministic: latest PO first
-                                            ), '-') AS VendorCode,
-
-                                            ItemMaster.AvailableQty,
-                                            ItemMaster.UnitCost,
-                                            MachineBOM.ProjectCode,
-                                            ItemMaster.Location,
-                                            ItemMaster.HSNSACCode,
-                                            MachineBOM.Vendor,
-                                            MachineBOM.DrawingNo,
-                                            MachineBOM.ExtraItem,
-                                            MachineBOM.ProjectStatus,
-                                            MachineBOM.AddedBy,
-                                            MachineBOM.AddedDate,
-                                            MachineBOM.ReturnQty,
-                                            MachineBOM.POQty,
-                                            MachineBOM.ProductType,
-                                            MachineBOM.FixedCost
-
-                                        FROM [ERP_Database].[dbo].[MachineBOM] AS MachineBOM
-
-                                        -- FIX: Changed from LEFT JOIN to OUTER APPLY (SELECT TOP 1)
-                                        -- This prevents duplicate rows when ProjectBOM has multiple entries
-                                        -- for the same ProjectCode + ProductNo combination.
-                                        OUTER APPLY (
-                                            SELECT TOP 1 
-                                                ProductCode
-                                            FROM ProjectBOM AS PB
-                                            WHERE PB.ProjectCode = MachineBOM.ProjectCode
-                                              AND PB.ProductNo = MachineBOM.ProductNo
-                                        ) AS PB
-
-                                        INNER JOIN ItemMaster 
-                                            ON ItemMaster.ItemCode = MachineBOM.ItemName
-
-                                            WHERE MachineBOM.ProjectCode = @ProjectCode
-                                              AND (
-                                                    @ProductFilter IS NULL
-                                                    OR PB.ProductCode = @ProductFilter
-                                                    OR MachineBOM.ProductNo = @ProductFilter
-                                                  )
-                                            ORDER BY MachineBOM.ItemName;", SQLCon);
+                SQLCmd.CommandTimeout = 120;
                 SQLCmd.Parameters.AddWithValue("@ProjectCode", projectCode ?? "");
                 SQLCmd.Parameters.AddWithValue("@ProductFilter",
                     string.IsNullOrWhiteSpace(productNo) ? (object)DBNull.Value : productNo);
@@ -238,9 +238,59 @@ namespace WinFormsApp1
             }
             finally
             {
-                SQLCon.Close();
+                if (SQLCon.State == ConnectionState.Open)
+                    SQLCon.Close();
             }
             return dt;
+        }
+
+        /// <summary>
+        /// One round-trip: all Receipt vendors for every ItemName on this project's MachineBOM.
+        /// </summary>
+        public Dictionary<string, List<string>> GetVendorsForProject(string projectCode)
+        {
+            var map = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                SQLCon.Open();
+                SQLCmd = new SqlCommand(@"
+SELECT DISTINCT r.ItemCode, r.VendorCode
+FROM Receipt r
+INNER JOIN MachineBOM m
+    ON m.ItemName = r.ItemCode
+   AND m.ProjectCode = @ProjectCode
+WHERE r.VendorCode IS NOT NULL
+  AND LTRIM(RTRIM(r.VendorCode)) <> ''
+ORDER BY r.ItemCode, r.VendorCode;", SQLCon);
+                SQLCmd.Parameters.AddWithValue("@ProjectCode", projectCode ?? "");
+                using (SqlDataReader reader = SQLCmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        string item = reader["ItemCode"]?.ToString() ?? "";
+                        string vendor = reader["VendorCode"]?.ToString() ?? "";
+                        if (string.IsNullOrWhiteSpace(item) || string.IsNullOrWhiteSpace(vendor))
+                            continue;
+                        if (!map.TryGetValue(item, out List<string> list))
+                        {
+                            list = new List<string>();
+                            map[item] = list;
+                        }
+                        if (!list.Contains(vendor, StringComparer.OrdinalIgnoreCase))
+                            list.Add(vendor);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error: " + ex.Message, "Get Vendors For Project", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                if (SQLCon.State == ConnectionState.Open)
+                    SQLCon.Close();
+            }
+            return map;
         }
 
         public DataTable GetVendorsForItem(string itemCode)
@@ -249,9 +299,9 @@ namespace WinFormsApp1
             try
             {
                 SQLCon.Open();
-                SQLCmd = new SqlCommand("SELECT ItemCode,VendorCode FROM Receipt where ItemCode='"+ itemCode + "'", SQLCon);
-               // SQLCmd.CommandType = CommandType.StoredProcedure;
-               // SQLCmd.Parameters.AddWithValue("@ItemCode", itemCode);
+                SQLCmd = new SqlCommand(
+                    "SELECT ItemCode, VendorCode FROM Receipt WHERE ItemCode = @ItemCode", SQLCon);
+                SQLCmd.Parameters.AddWithValue("@ItemCode", itemCode ?? "");
                 SQLDadpr = new SqlDataAdapter(SQLCmd);
                 SQLDadpr.Fill(dt);
             }
@@ -261,7 +311,8 @@ namespace WinFormsApp1
             }
             finally
             {
-                SQLCon.Close();
+                if (SQLCon.State == ConnectionState.Open)
+                    SQLCon.Close();
             }
             return dt;
         }
